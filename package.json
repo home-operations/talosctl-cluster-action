@@ -1,6 +1,6 @@
 {
   "name": "talosctl-cluster-action",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "GitHub Action that provisions an ephemeral Talos cluster (QEMU or Docker) from a declarative TalosCluster document",
   "license": "AGPL-3.0-only",
