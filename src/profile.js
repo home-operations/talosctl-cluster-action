@@ -15,8 +15,18 @@ export const DEFAULT_PROFILE = "ephemeral";
 
 // The console dashboard redraws continuously for nobody to watch, auditd logs kernel
 // audit events nothing reads, and CPU side-channel mitigations cost real cycles in a
-// guest that is destroyed at the end of the run.
-const KERNEL_ARGS = ["talos.dashboard.disabled=1", "talos.auditd.disabled=1", "mitigations=off"];
+// guest that is destroyed at the end of the run. init_on_alloc zeroes every allocation,
+// a hardening default worth trading for speed in a guest this short-lived; it is a
+// kernel-config default rather than a plain cmdline arg, and Image Factory does not
+// guarantee arg order (siderolabs/talos#11310), so a bare init_on_alloc=0 can lose to
+// the baked-in default. Stripping it first with -init_on_alloc makes the override stick.
+const KERNEL_ARGS = [
+  "talos.dashboard.disabled=1",
+  "talos.auditd.disabled=1",
+  "mitigations=off",
+  "-init_on_alloc",
+  "init_on_alloc=0",
+];
 
 // Borrowed from kind. A node's disk holds two full sets of Kubernetes images plus the
 // Talos installer; if kubelet's default thresholds trip partway through a run it
@@ -34,6 +44,26 @@ const KUBELET_GC = {
             "nodefs.inodesFree": "0%",
             "imagefs.available": "0%",
           },
+        },
+      },
+    },
+  },
+};
+
+// Kubelet pulls images one at a time by default, and a cold node spends most of its
+// bring-up doing exactly that. Pulling in parallel is the one real speedup a config
+// patch can still buy. The cap is deliberate: an unbounded burst against a
+// rate-limited registry draws a 429, which reads as a flaky test rather than a
+// throttle. Unlike the rest of the profile this is a trade, not a free win, and it
+// pays off most behind a pull-through cache, which a spec can add via config-patches.
+const IMAGE_PULLS = {
+  name: "parallel image pulls",
+  patch: {
+    machine: {
+      kubelet: {
+        extraConfig: {
+          serializeImagePulls: false,
+          maxParallelImagePulls: 3,
         },
       },
     },
@@ -89,7 +119,7 @@ export function profilePatches(profile, { hasSchematic = false } = {}) {
   if (profile !== "ephemeral") return emptyPatches();
 
   return {
-    cluster: hasSchematic ? [KUBELET_GC, INSTALL_IMAGE] : [KUBELET_GC],
+    cluster: hasSchematic ? [KUBELET_GC, IMAGE_PULLS, INSTALL_IMAGE] : [KUBELET_GC, IMAGE_PULLS],
     controlplanes: [ETCD_FSYNC, AUDIT_POLICY],
     workers: [],
   };
