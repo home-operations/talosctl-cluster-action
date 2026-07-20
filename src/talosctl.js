@@ -1,6 +1,7 @@
 import path from "node:path";
-import { getExecOutput } from "@actions/exec";
 import { which } from "@actions/io";
+
+import { tryExec } from "./exec.js";
 
 /**
  * A version manager's shim rather than a real binary. A shim is an absolute path,
@@ -11,11 +12,7 @@ export const isShim = (binary) => path.dirname(binary).split(path.sep).includes(
 
 /** Ask a version manager for the binary its shim points at. */
 async function unwrapShim(manager) {
-  const { exitCode, stdout } = await getExecOutput(manager, ["which", "talosctl"], {
-    ignoreReturnCode: true,
-    silent: true,
-    ignoreErrors: true,
-  }).catch(() => ({ exitCode: 1, stdout: "" }));
+  const { exitCode, stdout } = await tryExec(manager, ["which", "talosctl"]);
 
   return exitCode === 0 && stdout.trim() ? stdout.trim() : undefined;
 }
@@ -52,17 +49,22 @@ export async function resolveTalosctl(override) {
  * tag. Needed when a spec omits the version but the profile still has to pin an
  * install image to the matching Talos release.
  */
+/**
+ * The Tag field out of `talosctl version --client` output.
+ *
+ * Not \s*, which spans newlines: a talosctl built without version ldflags prints an
+ * empty Tag, and \s* would then capture the next line's first token ("SHA:") and pin
+ * an install image to it.
+ */
+export function parseVersionOutput(stdout) {
+  return stdout.match(/Tag:[^\S\n]*(\S+)/)?.[1];
+}
+
 async function defaultTalosVersion(binary) {
-  const { exitCode, stdout } = await getExecOutput(binary, ["version", "--client"], {
-    ignoreReturnCode: true,
-    silent: true,
-  });
+  const { exitCode, stdout } = await tryExec(binary, ["version", "--client"]);
   if (exitCode !== 0) return undefined;
 
-  // Not \s*, which spans newlines: a talosctl built without version ldflags has an
-  // empty Tag, and \s* would then capture the next line's first token ("SHA:") and
-  // pin an install image to it.
-  return stdout.match(/Tag:[^\S\n]*(\S+)/)?.[1];
+  return parseVersionOutput(stdout);
 }
 
 // v1.12 split `cluster create` into `qemu` and `docker` subcommands, but the floor is

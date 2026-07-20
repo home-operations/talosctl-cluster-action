@@ -44,8 +44,10 @@ description = "Format JSON, YAML, and Markdown"
 run = "oxfmt ."
 
 [tasks.lint]
-description = "Lint workflows and shell scripts"
+description = "Lint JavaScript, workflows, and shell scripts"
+depends = ["install"]
 run = '''
+npm run lint
 zizmor --offline .github/workflows/*.yaml action.yaml
 shellcheck $(git ls-files '*.sh') 2>/dev/null || true
 '''

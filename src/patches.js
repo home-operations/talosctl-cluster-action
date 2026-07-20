@@ -61,13 +61,31 @@ export function resolvePatch(patch, { baseDir = process.cwd(), vars = {} } = {})
   return substitute(JSON.stringify(value), vars);
 }
 
-const ROLES = ["cluster", "controlplanes", "workers"];
+/** The roles talosctl has a --config-patch flag for. */
+export const ROLES = ["cluster", "controlplanes", "workers"];
+
+/** An empty patch set, so no caller has to restate the role list to build one. */
+export const emptyPatches = () => Object.fromEntries(ROLES.map((role) => [role, []]));
 
 export function resolvePatches(cluster, options) {
   const byRole = cluster.spec?.["config-patches"] ?? {};
   const resolve = (list) => (list ?? []).map((patch) => resolvePatch(patch, options));
 
   return Object.fromEntries(ROLES.map((role) => [role, resolve(byRole[role])]));
+}
+
+/**
+ * Resolve the profile's patches, which carry a name alongside the patch so a run can
+ * report what it applied. They take the same ${VAR} substitution path as the
+ * caller's rather than a parallel one.
+ */
+export function resolveProfilePatches(byRole, options) {
+  return Object.fromEntries(
+    ROLES.map((role) => [
+      role,
+      (byRole[role] ?? []).map((entry) => resolvePatch(entry.patch, options)),
+    ]),
+  );
 }
 
 /**

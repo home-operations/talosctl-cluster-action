@@ -8,6 +8,9 @@
  * in a patch; those merge by key, with the spec's value winning.
  */
 
+import { emptyPatches } from "./patches.js";
+import { DEFAULT_PROVIDER } from "./args.js";
+
 export const DEFAULT_PROFILE = "ephemeral";
 
 // The console dashboard redraws continuously for nobody to watch, auditd logs kernel
@@ -71,7 +74,7 @@ const AUDIT_POLICY = {
 };
 
 /** Kernel args the profile contributes to the schematic. */
-export function profileKernelArgs(profile, provider = "qemu") {
+export function profileKernelArgs(profile, provider = DEFAULT_PROVIDER) {
   // Kernel args ride in an Image Factory schematic, which only the qemu provider
   // uses; docker runs a prebuilt Talos image and has no equivalent.
   if (profile !== "ephemeral" || provider === "docker") return [];
@@ -83,7 +86,7 @@ export function profileKernelArgs(profile, provider = "qemu") {
  * so that theirs win.
  */
 export function profilePatches(profile, { hasSchematic = false } = {}) {
-  if (profile !== "ephemeral") return { cluster: [], controlplanes: [], workers: [] };
+  if (profile !== "ephemeral") return emptyPatches();
 
   return {
     cluster: hasSchematic ? [KUBELET_GC, INSTALL_IMAGE] : [KUBELET_GC],

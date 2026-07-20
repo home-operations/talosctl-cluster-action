@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { getExecOutput } from "@actions/exec";
+import { tryExec } from "./exec.js";
 
 /**
  * Stricter than talosctl on purpose. Its own preflight only warns when /dev/kvm is
@@ -22,10 +22,7 @@ export async function assertKvm() {
  * rather than after the provisioner has written a state directory it cannot use.
  */
 export async function assertDocker() {
-  const { exitCode, stderr } = await getExecOutput("docker", ["info"], {
-    ignoreReturnCode: true,
-    silent: true,
-  }).catch(() => ({ exitCode: 127, stderr: "" }));
+  const { exitCode, stderr } = await tryExec("docker", ["info"]);
 
   if (exitCode === 0) return;
 
@@ -77,13 +74,8 @@ export function conflictingInterface(ipAddrOutput, gateway) {
 }
 
 export async function assertNetworkAvailable(gateway) {
-  // ignoreReturnCode only covers a non-zero exit; @actions/exec rejects outright when
-  // the binary is missing, which is the case this guard is actually for (a container
-  // image without iproute2). Without the catch that rejection fails the whole run.
-  const { exitCode, stdout } = await getExecOutput("ip", ["-o", "-4", "addr", "show"], {
-    ignoreReturnCode: true,
-    silent: true,
-  }).catch(() => ({ exitCode: 127, stdout: "" }));
+  // A container image without iproute2 has no `ip`; tryExec reports that as a value.
+  const { exitCode, stdout } = await tryExec("ip", ["-o", "-4", "addr", "show"]);
 
   // No `ip` to ask, so nothing to conclude; let the provisioner speak for itself.
   if (exitCode !== 0) return;

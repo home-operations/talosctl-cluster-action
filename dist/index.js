@@ -44477,7 +44477,7 @@ const DEFAULT_PROVIDER = "qemu";
 // required. --kubernetes-version has no such rule: makers/common.go already does
 // TrimPrefix(version, "v"), so withoutV only normalises what is echoed in the log.
 // Do not delete withV thinking the pair is symmetric.
-const withV$1 = (v) => (String(v).startsWith("v") ? String(v) : `v${v}`);
+const withV = (v) => (String(v).startsWith("v") ? String(v) : `v${v}`);
 const withoutV = (v) => String(v).replace(/^v/, "");
 
 const providerOf = (cluster) => cluster.spec?.provider ?? DEFAULT_PROVIDER;
@@ -44513,7 +44513,7 @@ function buildArgs(cluster, ctx = {}) {
   if (provider === "qemu") {
     const qemu = spec.qemu ?? {};
 
-    push("--talos-version", qemu["talos-version"] && withV$1(qemu["talos-version"]));
+    push("--talos-version", qemu["talos-version"] && withV(qemu["talos-version"]));
 
     // One comma-joined flag, not repeated flags: the Disks pflag.Value replaces its
     // accumulated list on every Set, so `--disks a --disks b` silently keeps only b.
@@ -44838,13 +44838,31 @@ function resolvePatch(patch, { baseDir = process.cwd(), vars = {} } = {}) {
   return substitute(JSON.stringify(value), vars);
 }
 
+/** The roles talosctl has a --config-patch flag for. */
 const ROLES = ["cluster", "controlplanes", "workers"];
+
+/** An empty patch set, so no caller has to restate the role list to build one. */
+const emptyPatches = () => Object.fromEntries(ROLES.map((role) => [role, []]));
 
 function resolvePatches(cluster, options) {
   const byRole = cluster.spec?.["config-patches"] ?? {};
   const resolve = (list) => (list ?? []).map((patch) => resolvePatch(patch, options));
 
   return Object.fromEntries(ROLES.map((role) => [role, resolve(byRole[role])]));
+}
+
+/**
+ * Resolve the profile's patches, which carry a name alongside the patch so a run can
+ * report what it applied. They take the same ${VAR} substitution path as the
+ * caller's rather than a parallel one.
+ */
+function resolveProfilePatches(byRole, options) {
+  return Object.fromEntries(
+    ROLES.map((role) => [
+      role,
+      (byRole[role] ?? []).map((entry) => resolvePatch(entry.patch, options)),
+    ]),
+  );
 }
 
 /**
@@ -44951,6 +44969,25 @@ function withKernelArgs(schematic, args) {
 const toYaml = (document) => YAML.stringify(document);
 
 /**
+ * Run a command and report failure as a value rather than a rejection.
+ *
+ * `ignoreReturnCode` only covers a non-zero exit; @actions/exec rejects outright when
+ * the binary is missing, which is the case every caller here actually cares about
+ * (probing for `ip`, `docker`, or a version manager that may not be installed).
+ *
+ * That distinction is easy to lose: of the four call sites this replaces, two had
+ * dropped the catch and would have failed the whole run instead of falling back to
+ * the path they were written to take.
+ */
+async function tryExec(command, args) {
+  return getExecOutput(command, args, { ignoreReturnCode: true, silent: true }).catch(() => ({
+    exitCode: 127,
+    stdout: "",
+    stderr: "",
+  }));
+}
+
+/**
  * A version manager's shim rather than a real binary. A shim is an absolute path,
  * so it survives sudo's PATH reset, but it re-execs through the manager, which
  * needs environment that sudo strips.
@@ -44959,11 +44996,7 @@ const isShim = (binary) => path$1.dirname(binary).split(path$1.sep).includes("sh
 
 /** Ask a version manager for the binary its shim points at. */
 async function unwrapShim(manager) {
-  const { exitCode, stdout } = await getExecOutput(manager, ["which", "talosctl"], {
-    ignoreReturnCode: true,
-    silent: true,
-    ignoreErrors: true,
-  }).catch(() => ({ exitCode: 1, stdout: "" }));
+  const { exitCode, stdout } = await tryExec(manager, ["which", "talosctl"]);
 
   return exitCode === 0 && stdout.trim() ? stdout.trim() : undefined;
 }
@@ -45000,17 +45033,22 @@ async function resolveTalosctl(override) {
  * tag. Needed when a spec omits the version but the profile still has to pin an
  * install image to the matching Talos release.
  */
+/**
+ * The Tag field out of `talosctl version --client` output.
+ *
+ * Not \s*, which spans newlines: a talosctl built without version ldflags prints an
+ * empty Tag, and \s* would then capture the next line's first token ("SHA:") and pin
+ * an install image to it.
+ */
+function parseVersionOutput(stdout) {
+  return stdout.match(/Tag:[^\S\n]*(\S+)/)?.[1];
+}
+
 async function defaultTalosVersion(binary) {
-  const { exitCode, stdout } = await getExecOutput(binary, ["version", "--client"], {
-    ignoreReturnCode: true,
-    silent: true,
-  });
+  const { exitCode, stdout } = await tryExec(binary, ["version", "--client"]);
   if (exitCode !== 0) return undefined;
 
-  // Not \s*, which spans newlines: a talosctl built without version ldflags has an
-  // empty Tag, and \s* would then capture the next line's first token ("SHA:") and
-  // pin an install image to it.
-  return stdout.match(/Tag:[^\S\n]*(\S+)/)?.[1];
+  return parseVersionOutput(stdout);
 }
 
 // v1.12 split `cluster create` into `qemu` and `docker` subcommands, but the floor is
@@ -45084,10 +45122,7 @@ async function assertKvm() {
  * rather than after the provisioner has written a state directory it cannot use.
  */
 async function assertDocker() {
-  const { exitCode, stderr } = await getExecOutput("docker", ["info"], {
-    ignoreReturnCode: true,
-    silent: true,
-  }).catch(() => ({ exitCode: 127, stderr: "" }));
+  const { exitCode, stderr } = await tryExec("docker", ["info"]);
 
   if (exitCode === 0) return;
 
@@ -45139,13 +45174,8 @@ function conflictingInterface(ipAddrOutput, gateway) {
 }
 
 async function assertNetworkAvailable(gateway) {
-  // ignoreReturnCode only covers a non-zero exit; @actions/exec rejects outright when
-  // the binary is missing, which is the case this guard is actually for (a container
-  // image without iproute2). Without the catch that rejection fails the whole run.
-  const { exitCode, stdout } = await getExecOutput("ip", ["-o", "-4", "addr", "show"], {
-    ignoreReturnCode: true,
-    silent: true,
-  }).catch(() => ({ exitCode: 127, stdout: "" }));
+  // A container image without iproute2 has no `ip`; tryExec reports that as a value.
+  const { exitCode, stdout } = await tryExec("ip", ["-o", "-4", "addr", "show"]);
 
   // No `ip` to ask, so nothing to conclude; let the provisioner speak for itself.
   if (exitCode !== 0) return;
@@ -45170,6 +45200,7 @@ async function assertNetworkAvailable(gateway) {
  * exception is the kernel args, which live in the Image Factory schematic rather than
  * in a patch; those merge by key, with the spec's value winning.
  */
+
 
 const DEFAULT_PROFILE = "ephemeral";
 
@@ -45234,7 +45265,7 @@ const AUDIT_POLICY = {
 };
 
 /** Kernel args the profile contributes to the schematic. */
-function profileKernelArgs(profile, provider = "qemu") {
+function profileKernelArgs(profile, provider = DEFAULT_PROVIDER) {
   // Kernel args ride in an Image Factory schematic, which only the qemu provider
   // uses; docker runs a prebuilt Talos image and has no equivalent.
   if (profile !== "ephemeral" || provider === "docker") return [];
@@ -45246,7 +45277,7 @@ function profileKernelArgs(profile, provider = "qemu") {
  * so that theirs win.
  */
 function profilePatches(profile, { hasSchematic = false } = {}) {
-  if (profile !== "ephemeral") return { cluster: [], controlplanes: [], workers: [] };
+  if (profile !== "ephemeral") return emptyPatches();
 
   return {
     cluster: hasSchematic ? [KUBELET_GC, INSTALL_IMAGE] : [KUBELET_GC],
@@ -45269,16 +45300,6 @@ function describeProfile(profile, options = {}) {
 }
 
 const bool = (name) => getBooleanInput(name);
-
-/** Profile patches carry the same ${VAR} placeholders as the caller's, so they take
- * the same resolution path rather than a parallel one. */
-const mapProfilePatches = (byRole, vars) =>
-  Object.fromEntries(
-    Object.entries(byRole).map(([role, entries]) => [
-      role,
-      entries.map((entry) => resolvePatch(entry.patch, { vars })),
-    ]),
-  );
 
 async function run() {
   const configPath = path$1.resolve(getInput("config", { required: true }));
@@ -45357,7 +45378,7 @@ async function run() {
   // caller's patches override the profile key by key and leave the rest standing.
   const profileOptions = { hasSchematic: Boolean(schematicId), provider };
   const patches = concatPatches(
-    mapProfilePatches(profilePatches(profile, profileOptions), vars),
+    resolveProfilePatches(profilePatches(profile, profileOptions), { vars }),
     resolvePatches(cluster, { baseDir, vars }),
   );
 

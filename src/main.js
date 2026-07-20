@@ -5,10 +5,10 @@ import * as core from "@actions/core";
 import { exec } from "@actions/exec";
 
 import { loadCluster, validateSocketPath } from "./config.js";
-import { buildArgs, nodeAddresses, providerOf } from "./args.js";
+import { buildArgs, nodeAddresses, providerOf, withV } from "./args.js";
 import {
   concatPatches,
-  resolvePatch,
+  resolveProfilePatches,
   resolvePatches,
   substitutions,
   unresolved,
@@ -19,16 +19,6 @@ import { assertDocker, assertKvm, assertNetworkAvailable, assertStateWritable } 
 import { describeProfile, profileKernelArgs, profilePatches, DEFAULT_PROFILE } from "./profile.js";
 
 const bool = (name) => core.getBooleanInput(name);
-
-/** Profile patches carry the same ${VAR} placeholders as the caller's, so they take
- * the same resolution path rather than a parallel one. */
-const mapProfilePatches = (byRole, vars) =>
-  Object.fromEntries(
-    Object.entries(byRole).map(([role, entries]) => [
-      role,
-      entries.map((entry) => resolvePatch(entry.patch, { vars })),
-    ]),
-  );
 
 export async function run() {
   const configPath = path.resolve(core.getInput("config", { required: true }));
@@ -107,7 +97,7 @@ export async function run() {
   // caller's patches override the profile key by key and leave the rest standing.
   const profileOptions = { hasSchematic: Boolean(schematicId), provider };
   const patches = concatPatches(
-    mapProfilePatches(profilePatches(profile, profileOptions), vars),
+    resolveProfilePatches(profilePatches(profile, profileOptions), { vars }),
     resolvePatches(cluster, { baseDir, vars }),
   );
 

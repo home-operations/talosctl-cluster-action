@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { isShim, resolveTalosctl } from "../src/talosctl.js";
+import { isShim, parseVersionOutput, resolveTalosctl } from "../src/talosctl.js";
 
 describe("resolveTalosctl", () => {
   it("honours an explicit override without probing anything", async () => {
@@ -29,5 +29,26 @@ describe("isShim", () => {
 
   it('does not treat a path merely containing "shims" as a shim', () => {
     assert.equal(isShim("/opt/shimsurvey/bin/talosctl"), false);
+  });
+});
+
+// Real `talosctl version --client` output is a block of tab-indented fields, some of
+// which are routinely blank (Built: is empty on the released 1.13.6 binary). A regex
+// that spans newlines reads the next field's name as this field's value.
+describe("parseVersionOutput", () => {
+  const released = "Client:\n\tTag:         v1.13.6\n\tSHA:         04318854\n\tBuilt:       \n";
+
+  it("reads the tag from real output", () => {
+    assert.equal(parseVersionOutput(released), "v1.13.6");
+  });
+
+  it("returns nothing for an empty tag rather than the next field's name", () => {
+    const noLdflags = "Client:\n\tTag:\n\tSHA:         04318854\n\tGo version:  go1.26.5\n";
+    assert.equal(parseVersionOutput(noLdflags), undefined);
+  });
+
+  it("returns nothing when there is no Tag field at all", () => {
+    assert.equal(parseVersionOutput(""), undefined);
+    assert.equal(parseVersionOutput("Client:\n\tSHA: 04318854\n"), undefined);
   });
 });

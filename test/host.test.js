@@ -1,7 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
-import { conflictingInterface } from "../src/host.js";
+import { assertStateWritable, conflictingInterface } from "../src/host.js";
+import { tryExec } from "../src/exec.js";
 
 // Real `ip -o -4 addr show` output, including a live QEMU cluster bridge.
 const IP_OUTPUT = [
@@ -32,5 +36,53 @@ describe("network conflict detection", () => {
 
   it("reports nothing for empty output", () => {
     assert.equal(conflictingInterface("", "10.5.0.1"), undefined);
+  });
+});
+
+// The mixed-provider trap: a qemu run creates the state root as root, and a later
+// docker run on the same host cannot write into it.
+describe("state directory writability", () => {
+  it("passes when the directory does not exist yet", () => {
+    assert.doesNotThrow(() => assertStateWritable(path.join(os.tmpdir(), "absent-xyz-9f2")));
+  });
+
+  it("passes on a directory the current user owns", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "writable-"));
+    assert.doesNotThrow(() => assertStateWritable(dir));
+  });
+
+  it("explains the cause when the directory is not writable", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "readonly-"));
+    fs.chmodSync(dir, 0o500);
+    try {
+      assert.throws(
+        () => assertStateWritable(dir),
+        /created by a qemu cluster, which runs as root/,
+      );
+    } finally {
+      fs.chmodSync(dir, 0o700);
+    }
+  });
+});
+
+// Every probe in the action goes through this. Its job is turning "the binary is not
+// installed" into a value rather than a rejection, which two call sites had lost and
+// would have failed the whole run over.
+describe("tryExec", () => {
+  it("reports a missing binary as a non-zero exit rather than throwing", async () => {
+    const result = await tryExec("definitely-not-a-real-binary-xyz", ["--version"]);
+    assert.equal(result.exitCode, 127);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "");
+  });
+
+  it("reports a non-zero exit without throwing", async () => {
+    assert.equal((await tryExec("sh", ["-c", "exit 3"])).exitCode, 3);
+  });
+
+  it("returns stdout on success", async () => {
+    const { exitCode, stdout } = await tryExec("sh", ["-c", "echo hello"]);
+    assert.equal(exitCode, 0);
+    assert.equal(stdout.trim(), "hello");
   });
 });
