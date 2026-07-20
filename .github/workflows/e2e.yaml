@@ -158,8 +158,53 @@ jobs:
           fi
           echo "spec schematic preserved: $EXPECT"
 
+      # The action exports KUBECONFIG and TALOSCONFIG only once `cluster create`
+      # returns, so a failure inside create leaves this step with neither, and the
+      # kubectl calls below would report nothing but "connection refused". The
+      # provisioner writes the talosconfig before it starts waiting on the cluster,
+      # so recover it from disk: RUNNER_TEMP is per-job, so the glob matches the one
+      # cluster this job made.
       - name: Diagnostics
         if: failure()
         run: |
+          if [[ -z "${TALOSCONFIG:-}" ]]; then
+            found=("${RUNNER_TEMP}"/*/talosconfig)
+            if [[ -s "${found[0]}" ]]; then
+              export TALOSCONFIG="${found[0]}"
+            else
+              echo "::warning::no talosconfig on disk; the run failed before the provisioner wrote one"
+              exit 0
+            fi
+          fi
+          echo "using talosconfig $TALOSCONFIG"
+
+          nodes=$(talosctl config info -o json | jq -r '((.nodes // []) + (.endpoints // [])) | unique | join(",")')
+          if [[ -z "$nodes" ]]; then
+            echo "::warning::talosconfig names no nodes"
+            exit 0
+          fi
+
+          # The Talos API answers even when the Kubernetes API does not, so these run
+          # first and unconditionally.
+          talosctl -n "$nodes" service || true
+          talosctl -n "$nodes" containers --kubernetes || true
+          talosctl -n "$nodes" dmesg --tail 50 || true
+
+          # A cluster can be healthy at the Talos level and still fail to converge in
+          # Kubernetes; that only shows up in pod state, so fetch a kubeconfig rather
+          # than relying on the one the action never got to export.
+          if [[ -z "${KUBECONFIG:-}" ]]; then
+            export KUBECONFIG="${RUNNER_TEMP}/diagnostics-kubeconfig"
+            talosctl -n "${nodes%%,*}" kubeconfig "$KUBECONFIG" --force || {
+              echo "::warning::could not fetch a kubeconfig; stopping after Talos-level output"
+              exit 0
+            }
+          fi
+
           kubectl get nodes,pods -A -o wide || true
           kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp || true
+          # Describes every kube-system pod rather than filtering on phase: a pod stuck
+          # in CrashLoopBackOff still reports phase Running, and that is the shape the
+          # cluster-create timeout takes.
+          kubectl -n kube-system describe pods || true
+          kubectl -n kube-system logs -l k8s-app=kube-dns --all-containers --tail 50 --prefix || true
