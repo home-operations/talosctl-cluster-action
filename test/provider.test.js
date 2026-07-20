@@ -135,6 +135,7 @@ describe("profile under docker", () => {
 
     const patches = profilePatches("ephemeral", { provider: "docker", hasSchematic: false });
     assert.match(JSON.stringify(patches.cluster), /imageGCHighThresholdPercent/);
+    assert.match(JSON.stringify(patches.cluster), /serializeImagePulls/);
     assert.match(JSON.stringify(patches.controlplanes), /unsafe-no-fsync/);
     // No schematic means nothing to pin an install image to.
     assert.doesNotMatch(JSON.stringify(patches.cluster), /install/);

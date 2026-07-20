@@ -197,15 +197,17 @@ A cluster that lives for one CI run wants a set of settings that a real cluster 
 not. `spec.profile` defaults to `ephemeral` and applies them, so a spec is only what
 makes your cluster different:
 
-| Setting                                                        | Why                                                        |
-| -------------------------------------------------------------- | ---------------------------------------------------------- |
-| `talos.dashboard.disabled=1`                                   | The console dashboard redraws for nobody to watch.         |
-| `talos.auditd.disabled=1`                                      | Kernel audit events nothing reads.                         |
-| `mitigations=off`                                              | Side-channel mitigations cost cycles in a throwaway guest. |
-| kubelet `imageGCHighThresholdPercent` + `evictionHard` at zero | Stops image GC and pod eviction from reading as flakes.    |
-| etcd `unsafe-no-fsync`                                         | Durability for I/O, on a cluster about to be deleted.      |
-| apiserver `auditPolicy: None`                                  | Talos logs every request to disk by default.               |
-| `machine.install.image` pinned to the schematic                | Only when a schematic is used; see below.                  |
+| Setting                                                           | Why                                                         |
+| ----------------------------------------------------------------- | ----------------------------------------------------------- |
+| `talos.dashboard.disabled=1`                                      | The console dashboard redraws for nobody to watch.          |
+| `talos.auditd.disabled=1`                                         | Kernel audit events nothing reads.                          |
+| `mitigations=off`                                                 | Side-channel mitigations cost cycles in a throwaway guest.  |
+| `init_on_alloc=0`                                                 | Zeroing every allocation costs cycles in a throwaway guest. |
+| kubelet `imageGCHighThresholdPercent` + `evictionHard` at zero    | Stops image GC and pod eviction from reading as flakes.     |
+| kubelet `serializeImagePulls: false` (`maxParallelImagePulls: 3`) | Pulls images in parallel, the slowest part of a cold start. |
+| etcd `unsafe-no-fsync`                                            | Durability for I/O, on a cluster about to be deleted.       |
+| apiserver `auditPolicy: None`                                     | Talos logs every request to disk by default.                |
+| `machine.install.image` pinned to the schematic                   | Only when a schematic is used; see below.                   |
 
 Every run logs exactly what it applied; nothing here happens silently.
 
