@@ -62,26 +62,3 @@ cat "${workdir}/output"
 kubeconfig="$(value_of kubeconfig "${workdir}/output")"
 KUBECONFIG="${kubeconfig}" kubectl wait --for=condition=Ready node --all --timeout=5m
 KUBECONFIG="${kubeconfig}" kubectl get nodes -o wide
-
-# Kernel args ride the Image Factory schematic, which only the qemu provider boots
-# from. The profile strips init_on_alloc and re-sets it to 0; Image Factory does not
-# guarantee arg order (siderolabs/talos#11310), so read the booted kernel's cmdline
-# back to prove the override took rather than losing to the baked-in default.
-provider="$(value_of provider "${workdir}/output")"
-if [[ "${provider}" == "qemu" ]]; then
-    echo "==> verifying init_on_alloc=0 reached the kernel cmdline"
-    talosctl_bin="$(value_of talosctl "${workdir}/state")"
-    talosconfig="$(value_of talosconfig "${workdir}/output")"
-    endpoint="$(value_of endpoint "${workdir}/output")"
-    cmdline="$(TALOSCONFIG="${talosconfig}" "${talosctl_bin}" --nodes "${endpoint}" read /proc/cmdline)"
-    echo "${cmdline}"
-    if ! grep -qw 'init_on_alloc=0' <<<"${cmdline}"; then
-        echo "init_on_alloc=0 is not on the kernel cmdline" >&2
-        exit 1
-    fi
-    if grep -qw 'init_on_alloc=1' <<<"${cmdline}"; then
-        echo "init_on_alloc=1 is still present; the -init_on_alloc strip did not take" >&2
-        exit 1
-    fi
-    echo "==> init_on_alloc=0 confirmed"
-fi

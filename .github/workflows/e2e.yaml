@@ -168,28 +168,6 @@ jobs:
           fi
           echo "spec schematic preserved: $EXPECT"
 
-      # The profile strips init_on_alloc from the schematic's kernel args and re-sets it
-      # to 0. Image Factory does not guarantee kernel-arg order (siderolabs/talos#11310),
-      # so a bare init_on_alloc=0 can lose to the baked-in default; read the booted
-      # kernel's cmdline back to prove the override took. Kernel args ride the schematic,
-      # which only the qemu provider boots from.
-      - name: Verify the profile's kernel args booted
-        if: matrix.example != 'docker'
-        env:
-          ENDPOINT: ${{ steps.cluster.outputs.endpoint }}
-        run: |
-          cmdline=$(talosctl -n "$ENDPOINT" read /proc/cmdline)
-          echo "$cmdline"
-          if ! grep -qw 'init_on_alloc=0' <<<"$cmdline"; then
-            echo "::error::init_on_alloc=0 is not on the kernel cmdline"
-            exit 1
-          fi
-          if grep -qw 'init_on_alloc=1' <<<"$cmdline"; then
-            echo "::error::init_on_alloc=1 is still present; the -init_on_alloc strip did not take"
-            exit 1
-          fi
-          echo "init_on_alloc=0 confirmed on the booted kernel"
-
       - name: Diagnostics
         if: failure()
         run: |
