@@ -1,0 +1,13 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/home-operations/talosctl-cluster-action/main/schema/talos-cluster.json
+apiVersion: v1alpha1
+kind: TalosCluster
+metadata:
+  name: minimal
+spec:
+  controlplanes:
+    count: 1
+  # Spelled out because talosctl defaults --workers to 1, not 0. Anything the spec
+  # omits keeps talosctl's default rather than one this action invents.
+  workers:
+    count: 0

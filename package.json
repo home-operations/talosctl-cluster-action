@@ -1,0 +1,28 @@
+{
+  "name": "talosctl-cluster-action",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GitHub Action that provisions an ephemeral Talos cluster (QEMU or Docker) from a declarative TalosCluster document",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "build": "rollup --config rollup.config.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@actions/core": "^3.0.1",
+    "@actions/exec": "^3.0.0",
+    "@actions/io": "^3.0.2",
+    "ajv": "^8.20.0",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^29.0.3",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "rollup": "^4.62.2"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

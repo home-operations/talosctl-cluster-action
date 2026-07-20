@@ -1,0 +1,34 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/home-operations/talosctl-cluster-action/main/schema/talos-cluster.json
+# The docker provider: nodes are containers sharing the host kernel. Much faster to
+# boot and needs no KVM, but there are no real per-node kernels, no disks, and no
+# `talosctl upgrade` to test against.
+apiVersion: v1alpha1
+kind: TalosCluster
+metadata:
+  name: docker-e2e
+spec:
+  provider: docker
+
+  # `talosctl cluster create docker` has no --controlplanes flag; it always runs
+  # exactly one. Only the worker count is adjustable.
+  workers:
+    count: 1
+
+  # A distinct network, so this can run alongside a qemu cluster on the same host.
+  # Maps to --subnet rather than --cidr, which is the same underlying option.
+  network:
+    cidr: 10.6.0.0/24
+
+  docker:
+    # docker's equivalent of the qemu provider's talos-version.
+    image: ghcr.io/siderolabs/talos:v1.13.6
+
+  # The profile still applies the parts that make sense here: the kubelet, etcd, and
+  # audit settings. Its kernel args are skipped, because those ride in an Image
+  # Factory schematic and docker boots a prebuilt image instead.
+  config-patches:
+    workers:
+      - machine:
+          sysctls:
+            net.ipv4.ip_forward: "1"

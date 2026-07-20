@@ -1,0 +1,18 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/home-operations/talosctl-cluster-action/main/schema/talos-cluster.json
+# One of each, so workloads have somewhere to drain to.
+# The ephemeral profile supplies the kernel args, kubelet GC, etcd, and audit
+# settings, and pins the install image, so a leg is only what differs.
+apiVersion: v1alpha1
+kind: TalosCluster
+metadata:
+  name: e2e-1cp-1w
+spec:
+  qemu:
+    talos-version: v1.13.6
+  controlplanes:
+    count: 1
+  workers:
+    count: 1
+  config-patches:
+    cluster: ["@patches/registry.yaml"]

@@ -1,0 +1,24 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["local>home-operations/renovate-config"],
+  // The bundle in dist/ is committed, because GitHub runs the action straight from
+  // the repo with no install step. A dependency bump is therefore only real once
+  // the bundle is rebuilt; CI's build-check gate fails the PR until it is.
+  postUpgradeTasks: {
+    commands: ["mise run build"],
+    fileFilters: ["dist/**"],
+    executionMode: "branch",
+  },
+  packageRules: [
+    {
+      // action.yaml's `using: node24` is the runtime GitHub executes the bundle on,
+      // and GitHub offers no newer one. Building on a later major would let a
+      // feature the runner lacks pass CI. Minors are welcome; a major needs
+      // `using:` changed in the same commit, so it is a deliberate edit, not a bot's.
+      description: "Keep the Node toolchain on the major that matches the action runtime",
+      matchManagers: ["mise"],
+      matchPackageNames: ["node"],
+      allowedVersions: "<25",
+    },
+  ],
+}

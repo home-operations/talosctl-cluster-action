@@ -1,0 +1,165 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: E2E
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - ".release-please-manifest.json"
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - ".release-please-manifest.json"
+  schedule:
+    - cron: "30 5 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  # renovate: datasource=github-releases depName=siderolabs/talos
+  TALOS_VERSION: v1.13.6
+
+jobs:
+  e2e:
+    name: E2E (${{ matrix.example }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Smallest thing that can boot: no schematic, no patches, all talosctl
+          # defaults. Proves the happy path with an almost empty spec.
+          - example: minimal
+            nodes: 1
+          # Exercises the parts a spec actually uses in anger: a registered
+          # schematic carrying its own kernel arg, per-role sizing, extra worker
+          # disks, and patches that override a profile default.
+          - example: full
+            nodes: 3
+            # The spec's own schematic content must survive into the booted nodes.
+            # Asserting only that a schematic id exists is not enough: the profile
+            # synthesizes one from its kernel args, so a discarded user schematic
+            # still yields a non-empty id.
+            expect-kernel-arg: console=ttyS0
+          # The docker provider: a different subcommand, --subnet instead of --cidr,
+          # no --controlplanes, no sudo, and a profile with the schematic-bound parts
+          # dropped. Needs no KVM, so it is also the fast leg.
+          - example: docker
+            nodes: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      # Deliberately a plain binary on PATH rather than a version manager: the
+      # action must not depend on how talosctl got there.
+      - name: Install talosctl
+        run: |
+          curl -sfL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o talosctl
+          sudo install -m 0755 talosctl /usr/local/bin/talosctl
+          talosctl version --client
+
+      # Host prep is the workflow's job, not the action's. Doing it here also proves
+      # the documented setup in the README is the setup that actually works.
+      - name: Install QEMU
+        if: matrix.example != 'docker'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
+
+      - name: Enable swap
+        if: matrix.example != 'docker'
+        run: |
+          sudo fallocate -l 8G /mnt/e2e-swapfile
+          sudo chmod 600 /mnt/e2e-swapfile
+          sudo mkswap /mnt/e2e-swapfile
+          sudo swapon /mnt/e2e-swapfile
+
+      - name: Create cluster
+        id: cluster
+        uses: ./
+        with:
+          config: examples/${{ matrix.example }}.yaml
+
+      - name: Verify the cluster came up
+        env:
+          EXPECTED_NODES: ${{ matrix.nodes }}
+          ENDPOINT: ${{ steps.cluster.outputs.endpoint }}
+        run: |
+          kubectl wait --for=condition=Ready node --all --timeout=5m
+          actual=$(kubectl get nodes --no-headers | wc -l)
+          if [[ "$actual" -ne "$EXPECTED_NODES" ]]; then
+            echo "::error::expected $EXPECTED_NODES nodes, found $actual"
+            kubectl get nodes -o wide
+            exit 1
+          fi
+          # The action reports where it thinks the first control plane is; if that
+          # drifts from what the provisioner did, every downstream step misfires.
+          talosctl -n "$ENDPOINT" version --short
+
+      - name: Verify the reported outputs
+        env:
+          EXAMPLE: ${{ matrix.example }}
+          PROVIDER: ${{ steps.cluster.outputs.provider }}
+          KUBECONFIG_OUT: ${{ steps.cluster.outputs.kubeconfig }}
+          TALOSCONFIG_OUT: ${{ steps.cluster.outputs.talosconfig }}
+          SCHEMATIC_ID: ${{ steps.cluster.outputs.schematic-id }}
+        run: |
+          test -s "$KUBECONFIG_OUT" || { echo "::error::kubeconfig output is empty"; exit 1; }
+          test -s "$TALOSCONFIG_OUT" || { echo "::error::talosconfig output is empty"; exit 1; }
+
+          expected=qemu
+          [[ "$EXAMPLE" == docker ]] && expected=docker
+          if [[ "$PROVIDER" != "$expected" ]]; then
+            echo "::error::expected provider $expected, got $PROVIDER"
+            exit 1
+          fi
+
+          # Only the qemu provider registers a schematic; docker boots a prebuilt
+          # image and must report none.
+          if [[ "$expected" == docker && -n "$SCHEMATIC_ID" ]]; then
+            echo "::error::docker reported a schematic id: $SCHEMATIC_ID"
+            exit 1
+          fi
+          echo "provider=$PROVIDER schematic-id=${SCHEMATIC_ID:-<none>}"
+
+      # Reads back the schematic the nodes actually booted from. A spec's own
+      # customization reaching the Factory is not observable from the outputs alone.
+      - name: Verify the spec's schematic survived
+        if: matrix.expect-kernel-arg != ''
+        env:
+          SCHEMATIC_ID: ${{ steps.cluster.outputs.schematic-id }}
+          EXPECT: ${{ matrix.expect-kernel-arg }}
+        run: |
+          if [[ -z "$SCHEMATIC_ID" ]]; then
+            echo "::error::no schematic id was reported"
+            exit 1
+          fi
+          curl -sfL "https://factory.talos.dev/schematics/${SCHEMATIC_ID}" -o schematic.yaml
+          if ! grep -q -- "$EXPECT" schematic.yaml; then
+            echo "::error::the spec's schematic was discarded: '$EXPECT' is absent from $SCHEMATIC_ID"
+            cat schematic.yaml
+            exit 1
+          fi
+          echo "spec schematic preserved: $EXPECT"
+
+      - name: Diagnostics
+        if: failure()
+        run: |
+          kubectl get nodes,pods -A -o wide || true
+          kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp || true

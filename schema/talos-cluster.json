@@ -1,0 +1,206 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/home-operations/talosctl-cluster-action/main/schema/talos-cluster.json",
+  "title": "TalosCluster",
+  "description": "Declarative form of `talosctl cluster create`. Fields under spec map to flags of the chosen provider's subcommand; anything a subcommand does not expose is not modelled here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata"],
+  "definitions": {
+    "patch": {
+      "description": "An inline machine config patch, or \"@path\" to read one from a file relative to the config file.",
+      "oneOf": [{ "type": "object" }, { "type": "string", "pattern": "^@.+", "minLength": 2 }]
+    },
+    "cpus": {
+      "description": "Share of host CPUs per node, as a fraction. Maps to --cpus-{controlplanes,workers}.",
+      "oneOf": [
+        { "type": "number", "exclusiveMinimum": 0 },
+        { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?$" }
+      ]
+    },
+    "memory": {
+      "description": "Memory limit per node. A bare number is MiB, matching talosctl's default unit. Maps to --memory-{controlplanes,workers}.",
+      "oneOf": [
+        { "type": "number", "exclusiveMinimum": 0 },
+        { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?\\s*([KMGT]i?B|B)?$" }
+      ]
+    }
+  },
+  "properties": {
+    "apiVersion": { "const": "v1alpha1" },
+    "kind": { "const": "TalosCluster" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "description": "Cluster name. Maps to --name. Kept short for the qemu provider: it appears twice in the QEMU monitor socket path, which is capped at 107 bytes.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "description": "Which `talosctl cluster create` subcommand to run. qemu gives real per-node kernels, disks, and upgrades; docker is faster but shares the host kernel.",
+          "enum": ["qemu", "docker"],
+          "default": "qemu"
+        },
+        "profile": {
+          "description": "Baseline settings for a throwaway CI cluster. Applied before config-patches, so any single key can be overridden there. Use \"none\" to apply nothing.",
+          "enum": ["ephemeral", "none"],
+          "default": "ephemeral"
+        },
+        "kubernetes-version": {
+          "description": "Kubernetes version to install. Maps to --kubernetes-version; a leading v is stripped, which talosctl requires.",
+          "type": "string",
+          "minLength": 1
+        },
+        "controlplanes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "description": "Number of control plane nodes. Maps to --controlplanes, which only the qemu subcommand exposes; docker always runs exactly one.",
+              "type": "integer",
+              "minimum": 1
+            },
+            "cpus": { "$ref": "#/definitions/cpus" },
+            "memory": { "$ref": "#/definitions/memory" }
+          }
+        },
+        "workers": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "count": { "type": "integer", "minimum": 0 },
+            "cpus": { "$ref": "#/definitions/cpus" },
+            "memory": { "$ref": "#/definitions/memory" }
+          }
+        },
+        "network": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cidr": {
+              "description": "CIDR of the cluster network. Maps to --cidr on qemu and --subnet on docker, which set the same underlying option. Nodes are numbered upward from the second address; the first is the gateway.",
+              "type": "string",
+              "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$"
+            },
+            "mtu": {
+              "description": "MTU of the cluster network. Maps to --mtu, which both subcommands accept (it is hidden from --help, not absent); docker applies it to the bridge as com.docker.network.driver.mtu.",
+              "type": "integer",
+              "minimum": 576
+            }
+          }
+        },
+        "config-patches": {
+          "description": "Machine config patches by node role.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "cluster": {
+              "description": "Applied to every node. Maps to --config-patch.",
+              "type": "array",
+              "items": { "$ref": "#/definitions/patch" }
+            },
+            "controlplanes": {
+              "description": "Applied to control plane nodes. Maps to --config-patch-controlplanes.",
+              "type": "array",
+              "items": { "$ref": "#/definitions/patch" }
+            },
+            "workers": {
+              "description": "Applied to worker nodes. Maps to --config-patch-workers.",
+              "type": "array",
+              "items": { "$ref": "#/definitions/patch" }
+            }
+          }
+        },
+        "qemu": {
+          "description": "Settings only `talosctl cluster create qemu` accepts.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "talos-version": {
+              "description": "Talos version to boot, with a leading v. Maps to --talos-version.",
+              "type": "string",
+              "minLength": 1
+            },
+            "disks": {
+              "description": "Disks per node, as \"driver:size\" with optional \":tag=\" / \":serial=\" parameters. Maps to a single --disks flag. The first disk goes to every node; any after it are attached to workers only.",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9]+:[0-9]+(\\.[0-9]+)?\\s*([KMGT]i?B|B)?(:[a-z]+=[^:]+)*$"
+              }
+            },
+            "schematic": {
+              "description": "Image Factory schematic, inline or \"@path\". Registered with the factory at run time; the returned id is passed as --schematic-id. Mutually exclusive with schematic-id.",
+              "oneOf": [
+                { "type": "object" },
+                { "type": "string", "pattern": "^@.+", "minLength": 2 }
+              ]
+            },
+            "schematic-id": {
+              "description": "A pre-registered Image Factory schematic id. Maps to --schematic-id. Mutually exclusive with schematic.",
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "image-factory": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "url": {
+                  "description": "Image Factory base URL. Maps to --image-factory-url.",
+                  "type": "string",
+                  "format": "uri"
+                },
+                "auth": {
+                  "description": "username:password for the Image Factory. Maps to --image-factory-auth. Pass a secret, never a literal.",
+                  "type": "string"
+                }
+              }
+            },
+            "presets": {
+              "description": "Boot presets. Maps to --presets. Exactly one of iso, iso-secureboot, pxe, or disk-image must be present.",
+              "type": "array",
+              "minItems": 1,
+              "items": { "enum": ["iso", "iso-secureboot", "pxe", "disk-image", "maintenance"] }
+            }
+          }
+        },
+        "docker": {
+          "description": "Settings only `talosctl cluster create docker` accepts.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "image": {
+              "description": "Talos image to run. Maps to --image. This is docker's equivalent of the qemu provider's talos-version.",
+              "type": "string",
+              "minLength": 1
+            },
+            "host-ip": {
+              "description": "Host IP to forward exposed ports to. Maps to --host-ip.",
+              "type": "string"
+            },
+            "exposed-ports": {
+              "description": "Ports to expose on the init node, as \"<hostPort>:<containerPort>/<protocol>\". Maps to --exposed-ports.",
+              "type": "string"
+            },
+            "mounts": {
+              "description": "Mounts to attach to each container, in `docker --mount` syntax. Maps to a repeated --mount.",
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

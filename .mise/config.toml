@@ -1,0 +1,69 @@
+# mise is the single source of truth for the toolchain across developer shells and
+# CI. GitHub runs the action from the committed bundle in dist/, so Node is only a
+# build-and-test dependency here, never a runtime one for consumers.
+#
+# `mise tasks` lists tasks; `mise run <task>` runs one.
+
+[tools]
+# Held at 24.x deliberately, not stale. GitHub Actions offers only node20 and node24
+# as action runtimes, so action.yaml's `using: node24` is the ceiling; building and
+# testing on a newer major would let a feature the runner lacks pass CI and fail in
+# the field. Bump the minor freely; bump the major only when GitHub ships a runtime
+# to match, and change `using:` in the same commit.
+node = "24.18.0"
+npm = "12.0.1"
+lefthook = "2.1.10"
+oxfmt = "0.59.0"
+shellcheck = "0.11.0"
+zizmor = "1.27.0"
+jq = "1.8.2"
+yq = "4.53.3"
+# Only used by `mise run e2e` to exercise the action against a real cluster on a
+# KVM-capable host. Consumers pin their own talosctl; the action resolves whatever
+# the caller provides.
+talosctl = "1.13.6"
+
+[tasks.install]
+description = "Install npm dependencies from the lockfile"
+sources = ["package.json", "package-lock.json"]
+outputs = { auto = true }
+run = "npm ci"
+
+[tasks.build]
+description = "Bundle src/ into the committed dist/ that GitHub executes"
+depends = ["install"]
+run = "npm run build"
+
+[tasks.test]
+description = "Run unit tests (node:test)"
+depends = ["install"]
+run = "npm test"
+
+[tasks.fmt]
+description = "Format JSON, YAML, and Markdown"
+run = "oxfmt ."
+
+[tasks.lint]
+description = "Lint workflows and shell scripts"
+run = '''
+zizmor --offline .github/workflows/*.yaml action.yaml
+shellcheck $(git ls-files '*.sh') 2>/dev/null || true
+'''
+
+[tasks.build-check]
+description = "Fail if the committed dist/ is stale relative to src/ (CI gate)"
+depends = ["build"]
+run = '''
+if ! git diff --exit-code --stat -- dist/; then
+  echo "::error::dist/ is stale. Run 'mise run build' and commit the result." >&2
+  exit 1
+fi
+'''
+
+[tasks.e2e]
+description = "Create a real cluster from examples/ on a KVM-capable host, then destroy it"
+depends = ["build"]
+run = "./test/e2e.sh"
+
+[hooks]
+postinstall = "lefthook install"

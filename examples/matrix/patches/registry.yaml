@@ -1,0 +1,10 @@
+# Shared by every leg. registry.e2e resolves to a plain-HTTP registry the harness
+# runs on the QEMU bridge gateway, which is where locally built images are pushed.
+# The profile does not cover this: it is specific to how a project feeds images to
+# its nodes, not to running a throwaway cluster.
+machine:
+  registries:
+    mirrors:
+      registry.e2e:
+        endpoints:
+          - http://10.5.0.1:5000

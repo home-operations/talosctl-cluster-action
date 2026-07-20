@@ -1,0 +1,61 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-action.json
+name: Talos Cluster
+description: >-
+  Provision an ephemeral Talos Linux cluster with the QEMU or Docker provisioner,
+  from a declarative TalosCluster config file.
+author: home-operations
+
+branding:
+  icon: server
+  color: blue
+
+inputs:
+  config:
+    description: Path to the TalosCluster config file.
+    required: true
+    default: .talos-cluster.yaml
+  talosctl:
+    description: >-
+      Absolute path to the talosctl binary. Defaults to a PATH lookup, which is all
+      any normal install needs. Set this only when talosctl is somewhere PATH cannot
+      reach it. Must be v1.13 or newer: v1.12 introduced the qemu and docker
+      subcommands, but not --image-factory-auth or the :tag= / :serial= disk
+      parameters this action accepts.
+    required: false
+  config-dir:
+    description: >-
+      Directory for the generated kubeconfig, talosconfig, and machine configs.
+      Defaults to $RUNNER_TEMP/<cluster name>. Not the cluster state directory,
+      which stays at ~/.talos/clusters to keep the QEMU monitor socket path short.
+    required: false
+  cleanup:
+    description: Destroy the cluster in the post step.
+    required: false
+    default: "true"
+
+outputs:
+  cluster-name:
+    description: Name of the created cluster.
+  provider:
+    description: Provisioner the cluster was created with, qemu or docker.
+  kubeconfig:
+    description: Path to the generated kubeconfig. Also exported as $KUBECONFIG.
+  talosconfig:
+    description: Path to the generated talosconfig. Also exported as $TALOSCONFIG.
+  schematic-id:
+    description: Image Factory schematic id the nodes booted from, if one was used.
+  endpoint:
+    description: Address of the first control plane node.
+  gateway:
+    description: Gateway of the cluster network, the first address in its CIDR.
+  controlplane-ips:
+    description: Comma-separated control plane addresses.
+  worker-ips:
+    description: Comma-separated worker addresses.
+
+runs:
+  using: node24
+  main: dist/index.js
+  post: dist/cleanup.js
+  post-if: always()

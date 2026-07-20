@@ -1,0 +1,18 @@
+[[remotes]]
+git_url = "https://github.com/home-operations/.github"
+ref = "main"
+configs = ["lefthook.common.toml"]
+
+# GitHub executes the committed bundle, not src/, so a src change that is not
+# rebuilt ships nothing. CI's build-check is the backstop.
+[pre-commit.commands.build]
+glob = ["src/*.js", "schema/*.json", "package-lock.json", "rollup.config.js"]
+run = "mise run build && git add dist"
+
+# dist/ is generated; keep it out of the shared formatters (oxfmt exits non-zero
+# when every input is ignored).
+[pre-commit.commands.format-json]
+exclude = ["dist/*"]
+
+[pre-commit.commands.format-markdown]
+exclude = ["dist/*"]

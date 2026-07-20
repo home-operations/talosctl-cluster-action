@@ -1,0 +1,55 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/home-operations/talosctl-cluster-action/main/schema/talos-cluster.json
+# The qemu provider: sizing, disks, a schematic, and how to override the profile.
+apiVersion: v1alpha1
+kind: TalosCluster
+metadata:
+  name: full
+spec:
+  # `provider: qemu` and `profile: ephemeral` are both the defaults. The profile
+  # supplies the kernel args, the kubelet GC thresholds, the etcd and audit settings,
+  # and the pinned install image, so nothing below repeats any of it.
+  kubernetes-version: v1.34.0
+
+  controlplanes:
+    count: 1
+    memory: 2GiB
+
+  workers:
+    count: 2
+    cpus: 2
+    memory: 3GiB
+
+  network:
+    cidr: 10.5.0.0/24
+
+  qemu:
+    talos-version: v1.13.6
+
+    # The first disk goes to every node; the second is attached to workers only.
+    disks:
+      - virtio:10GiB
+      - virtio:8GiB
+
+    # Only what the profile does not already cover. Its kernel args are merged into
+    # this schematic, so they need no repeating; setting one here by the same key
+    # would win.
+    schematic:
+      customization:
+        extraKernelArgs:
+          - console=ttyS0
+
+  config-patches:
+    # Applied after the profile's patches, so these win key by key and leave the
+    # rest of the profile standing.
+    controlplanes:
+      # The profile turns etcd fsync off, which suits a cluster that is thrown away.
+      # A test that cares about durability turns it back on like this.
+      - cluster:
+          etcd:
+            extraArgs:
+              unsafe-no-fsync: "false"
+    workers:
+      - machine:
+          sysctls:
+            net.ipv4.ip_forward: "1"

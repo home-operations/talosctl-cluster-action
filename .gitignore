@@ -1,0 +1,10 @@
+node_modules/
+
+# editor and IDE paraphernalia
+*.swo
+*.swp
+*~
+.claude
+.idea
+.private
+.vscode

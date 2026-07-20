@@ -1,0 +1,8 @@
+---
+rules:
+  # The e2e workflow runs the action from the checkout under test (`uses: ./`),
+  # which is the only way to exercise it before release. The reviewed code and the
+  # code being run are the same commit.
+  unpinned-uses:
+    ignore:
+      - e2e.yaml

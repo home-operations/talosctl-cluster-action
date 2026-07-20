@@ -1,0 +1,55 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Generate Token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          client-id: ${{ secrets.BOT_CLIENT_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+
+      - name: Release Please
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # Consumers pin `uses: home-operations/talos-qemu-action@v1`, so the major tag
+      # has to follow each release. Done through the API rather than a checkout and
+      # force-push, which keeps credentials off the runner's git config.
+      - name: Move the major version tag
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+          MAJOR: v${{ steps.release.outputs.major }}
+          SHA: ${{ github.sha }}
+        run: |
+          gh api -X PATCH "repos/${REPOSITORY}/git/refs/tags/${MAJOR}" \
+            -f "sha=${SHA}" -F force=true \
+          || gh api -X POST "repos/${REPOSITORY}/git/refs" \
+            -f "ref=refs/tags/${MAJOR}" -f "sha=${SHA}"

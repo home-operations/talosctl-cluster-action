@@ -1,0 +1,11 @@
+* text=auto eol=lf
+dist/** linguist-generated
+*.env linguist-detectable linguist-language=SHELL
+*.js linguist-detectable linguist-language=JAVASCRIPT
+*.json linguist-detectable linguist-language=JSON
+*.json5 linguist-detectable linguist-language=JSON5
+*.md linguist-detectable linguist-language=MARKDOWN
+*.sh linguist-detectable linguist-language=SHELL
+*.toml linguist-detectable linguist-language=TOML
+*.yml linguist-detectable linguist-language=YAML
+*.yaml linguist-detectable linguist-language=YAML
