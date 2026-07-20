@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/home-operations/talosctl-cluster-action/compare/v0.1.1...v0.1.2) (2026-07-20)
+
+
+### Bug Fixes
+
+* load br_netfilter so the docker provider's CNI comes up ([#2](https://github.com/home-operations/talosctl-cluster-action/issues/2)) ([f81f365](https://github.com/home-operations/talosctl-cluster-action/commit/f81f3655e46a22e0ec09cd8e9394331708aff7c6))
+
 ## [0.1.1](https://github.com/home-operations/talosctl-cluster-action/compare/v0.1.0...v0.1.1) (2026-07-20)
 
 
