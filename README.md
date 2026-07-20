@@ -7,7 +7,7 @@ with either the QEMU or the Docker provisioner.
 ```yaml
 - uses: home-operations/talosctl-cluster-action@v1
   with:
-      config: test/e2e/cluster.yaml
+    config: test/e2e/cluster.yaml
 ```
 
 ```yaml
@@ -15,21 +15,21 @@ with either the QEMU or the Docker provisioner.
 apiVersion: v1alpha1
 kind: TalosCluster
 metadata:
-    name: e2e
+  name: e2e
 spec:
-    controlplanes:
-        count: 1
+  controlplanes:
+    count: 1
+  workers:
+    count: 2
+    cpus: 2
+    memory: 4GiB
+  network:
+    cidr: 10.5.0.0/24
+  config-patches:
     workers:
-        count: 2
-        cpus: 2
-        memory: 4GiB
-    network:
-        cidr: 10.5.0.0/24
-    config-patches:
-        workers:
-            - machine:
-                  sysctls:
-                      net.ipv4.ip_forward: "1"
+      - machine:
+          sysctls:
+            net.ipv4.ip_forward: "1"
 ```
 
 Subsequent steps get `KUBECONFIG` and `TALOSCONFIG` in the environment, so `kubectl`
@@ -75,26 +75,26 @@ mutation in your workflow, where you can see it. Both providers need `talosctl`
 ```yaml
 - name: Install talosctl
   env:
-      # renovate: datasource=github-releases depName=siderolabs/talos
-      TALOS_VERSION: v1.13.6
+    # renovate: datasource=github-releases depName=siderolabs/talos
+    TALOS_VERSION: v1.13.6
   run: |
-      curl -sfL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o talosctl
-      sudo install -m 0755 talosctl /usr/local/bin/talosctl
+    curl -sfL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o talosctl
+    sudo install -m 0755 talosctl /usr/local/bin/talosctl
 
 - name: Install QEMU
   run: |
-      sudo apt-get update
-      sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
+    sudo apt-get update
+    sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
 
 # Headroom for the upgrade phase, when each node unpacks an installer alongside etcd
 # and the API server. Its own file, so it adds to the runner's existing swap. Skip it
 # and a 16GB runner will OOM mid-upgrade, which reads as a flaky test.
 - name: Enable swap
   run: |
-      sudo fallocate -l 8G /mnt/e2e-swapfile
-      sudo chmod 600 /mnt/e2e-swapfile
-      sudo mkswap /mnt/e2e-swapfile
-      sudo swapon /mnt/e2e-swapfile
+    sudo fallocate -l 8G /mnt/e2e-swapfile
+    sudo chmod 600 /mnt/e2e-swapfile
+    sudo mkswap /mnt/e2e-swapfile
+    sudo swapon /mnt/e2e-swapfile
 ```
 
 ### docker
@@ -203,12 +203,12 @@ stays:
 
 ```yaml
 spec:
-    config-patches:
-        controlplanes:
-            - cluster:
-                  etcd:
-                      extraArgs:
-                          unsafe-no-fsync: "false" # keep the rest of the profile
+  config-patches:
+    controlplanes:
+      - cluster:
+          etcd:
+            extraArgs:
+              unsafe-no-fsync: "false" # keep the rest of the profile
 ```
 
 **The install image pin** is the one that is easy to miss. `talosctl` never sets
@@ -225,11 +225,11 @@ merge by key instead, and your schematic wins:
 
 ```yaml
 spec:
-    qemu:
-        schematic:
-            customization:
-                extraKernelArgs:
-                    - mitigations=auto # beats the profile's mitigations=off
+  qemu:
+    schematic:
+      customization:
+        extraKernelArgs:
+          - mitigations=auto # beats the profile's mitigations=off
 ```
 
 If you pass a pre-registered `spec.qemu.schematic-id`, the action cannot fold kernel args
@@ -248,10 +248,10 @@ semantics.
 
 ```yaml
 spec:
-    qemu:
-        disks:
-            - virtio:10GiB # every node
-            - virtio:20GiB # workers only
+  qemu:
+    disks:
+      - virtio:10GiB # every node
+      - virtio:20GiB # workers only
 ```
 
 ### Patches and schematics
@@ -261,15 +261,15 @@ file so a spec can sit next to the files it references:
 
 ```yaml
 spec:
-    qemu:
-        schematic: "@schematic.yaml"
-    config-patches:
-        cluster: ["@patches/registry.yaml"]
-        controlplanes:
-            - cluster:
-                  etcd:
-                      extraArgs:
-                          unsafe-no-fsync: "true"
+  qemu:
+    schematic: "@schematic.yaml"
+  config-patches:
+    cluster: ["@patches/registry.yaml"]
+    controlplanes:
+      - cluster:
+          etcd:
+            extraArgs:
+              unsafe-no-fsync: "true"
 ```
 
 Patches may reference `${SCHEMATIC_ID}`, `${TALOS_VERSION}`, `${KUBERNETES_VERSION}`,
@@ -280,11 +280,11 @@ is only known after this action registers the schematic:
 
 ```yaml
 spec:
-    config-patches:
-        cluster:
-            - machine:
-                  install:
-                      image: factory.talos.dev/installer/${SCHEMATIC_ID}:${TALOS_VERSION}
+  config-patches:
+    cluster:
+      - machine:
+          install:
+            image: factory.talos.dev/installer/${SCHEMATIC_ID}:${TALOS_VERSION}
 ```
 
 ### A different Image Factory
@@ -294,15 +294,15 @@ Leave it out and everything uses the official `https://factory.talos.dev/`.
 
 ```yaml
 spec:
-    qemu:
-        image-factory:
-            url: https://factory.internal/image-factory
-            auth: ${FACTORY_CREDENTIALS} # username:password
-        schematic:
-            customization:
-                systemExtensions:
-                    officialExtensions:
-                        - siderolabs/drbd
+  qemu:
+    image-factory:
+      url: https://factory.internal/image-factory
+      auth: ${FACTORY_CREDENTIALS} # username:password
+    schematic:
+      customization:
+        systemExtensions:
+          officialExtensions:
+            - siderolabs/drbd
 ```
 
 Two consumers, because there are two calls: the action registers the schematic over
@@ -337,16 +337,16 @@ anything else common sits behind an `@path`:
 apiVersion: v1alpha1
 kind: TalosCluster
 metadata:
-    name: e2e-3cp-0w
+  name: e2e-3cp-0w
 spec:
-    qemu:
-        talos-version: v1.13.6
-    controlplanes:
-        count: 3
-    workers:
-        count: 0
-    config-patches:
-        cluster: ["@patches/registry.yaml"]
+  qemu:
+    talos-version: v1.13.6
+  controlplanes:
+    count: 3
+  workers:
+    count: 0
+  config-patches:
+    cluster: ["@patches/registry.yaml"]
 ```
 
 `@path` resolves relative to the config file, so the leg documents and the files they
@@ -354,32 +354,32 @@ share sit in one directory and move together.
 
 ```yaml
 jobs:
-    e2e:
-        name: E2E (${{ matrix.leg }})
-        runs-on: ubuntu-24.04
-        timeout-minutes: 45
-        strategy:
-            # The legs are independent clusters, so a failure in one should not cost
-            # you the signal from the others.
-            fail-fast: false
-            matrix:
-                leg: [1cp-0w, 1cp-1w, 3cp-0w]
-        steps:
-            - uses: actions/checkout@v7
-              with:
-                  persist-credentials: false
+  e2e:
+    name: E2E (${{ matrix.leg }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      # The legs are independent clusters, so a failure in one should not cost
+      # you the signal from the others.
+      fail-fast: false
+      matrix:
+        leg: [1cp-0w, 1cp-1w, 3cp-0w]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
-            - uses: home-operations/talosctl-cluster-action@v1
-              id: cluster
-              with:
-                  config: test/e2e/${{ matrix.leg }}.yaml
+      - uses: home-operations/talosctl-cluster-action@v1
+        id: cluster
+        with:
+          config: test/e2e/${{ matrix.leg }}.yaml
 
-            # KUBECONFIG and TALOSCONFIG are already exported, so nothing to wire up.
-            - run: kubectl wait --for=condition=Ready node --all --timeout=5m
+      # KUBECONFIG and TALOSCONFIG are already exported, so nothing to wire up.
+      - run: kubectl wait --for=condition=Ready node --all --timeout=5m
 
-            - run: talosctl -n "$ENDPOINT" version
-              env:
-                  ENDPOINT: ${{ steps.cluster.outputs.endpoint }}
+      - run: talosctl -n "$ENDPOINT" version
+        env:
+          ENDPOINT: ${{ steps.cluster.outputs.endpoint }}
 ```
 
 Three things worth knowing before you scale the matrix out:
@@ -402,13 +402,13 @@ Three things worth knowing before you scale the matrix out:
   id: cluster
   background: true
   with:
-      config: test/e2e/${{ matrix.leg }}.yaml
+    config: test/e2e/${{ matrix.leg }}.yaml
 
 - uses: docker/build-push-action@v7
   id: image
   background: true
   with:
-      context: .
+    context: .
 
 - wait: [cluster, image]
 
