@@ -99,8 +99,26 @@ mutation in your workflow, where you can see it. Both providers need `talosctl`
 
 ### docker
 
-Only `talosctl`. The daemon is already running on GitHub-hosted runners, and the
-runner user is already in the `docker` group.
+`talosctl`, plus one kernel module. The daemon is already running on GitHub-hosted
+runners and the runner user is already in the `docker` group, so no install is needed.
+
+```yaml
+- name: Install talosctl
+  env:
+    # renovate: datasource=github-releases depName=siderolabs/talos
+    TALOS_VERSION: v1.13.6
+  run: |
+    curl -sfL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o talosctl
+    sudo install -m 0755 talosctl /usr/local/bin/talosctl
+
+# The nodes are containers on the runner's kernel, so flannel runs against host modules
+# it cannot load itself. Without br_netfilter its `bridge-nf-call-iptables` probe fails,
+# flannel never writes /run/flannel/subnet.env, and every pod sandbox then fails on the
+# missing CNI subnet. cluster create sits waiting on CoreDNS until it times out. Runners
+# do not load this module by default.
+- name: Load br_netfilter
+  run: sudo modprobe br_netfilter
+```
 
 ### About sudo
 
