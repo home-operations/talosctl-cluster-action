@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.3](https://github.com/home-operations/talosctl-cluster-action/compare/v0.1.2...v0.1.3) (2026-07-20)
+
+
+### Features
+
+* **deps:** update node.js (v24.0.0 → v24.18.0) ([#5](https://github.com/home-operations/talosctl-cluster-action/issues/5)) ([221da8b](https://github.com/home-operations/talosctl-cluster-action/commit/221da8be8ea80423675c74bafc9d797af5d49495))
+* **profile:** parallel image pulls and init_on_alloc=0 ([#7](https://github.com/home-operations/talosctl-cluster-action/issues/7)) ([29b21ff](https://github.com/home-operations/talosctl-cluster-action/commit/29b21ff1f5f26f07546f75071d2ae9e6c4913366))
+
 ## [0.1.2](https://github.com/home-operations/talosctl-cluster-action/compare/v0.1.1...v0.1.2) (2026-07-20)
 
 
