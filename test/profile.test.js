@@ -33,7 +33,15 @@ describe("profile", () => {
       "talos.dashboard.disabled=1",
       "talos.auditd.disabled=1",
       "mitigations=off",
+      "-init_on_alloc",
+      "init_on_alloc=0",
     ]);
+  });
+
+  it("turns on bounded parallel image pulls", () => {
+    const cluster = JSON.stringify(profilePatches("ephemeral").cluster);
+    assert.match(cluster, /"serializeImagePulls":false/);
+    assert.match(cluster, /"maxParallelImagePulls":3/);
   });
 
   it("puts etcd and audit settings on control planes only", () => {
@@ -55,7 +63,8 @@ describe("profile", () => {
   });
 
   const pinnedImage = (vars) => {
-    const [, installImage] = profilePatches("ephemeral", { hasSchematic: true }).cluster;
+    const { cluster } = profilePatches("ephemeral", { hasSchematic: true });
+    const installImage = cluster.find((entry) => entry.name.includes("install image"));
     return JSON.parse(resolvePatch(installImage.patch, { vars })).machine.install.image;
   };
 
@@ -85,8 +94,9 @@ describe("profile", () => {
     const lines = describeProfile("ephemeral", { hasSchematic: true });
     assert.match(lines.join("\n"), /kernel args/);
     assert.match(lines.join("\n"), /kubelet/);
+    assert.match(lines.join("\n"), /parallel image pulls/);
     assert.match(lines.join("\n"), /etcd/);
-    assert.equal(lines.length, 5);
+    assert.equal(lines.length, 6);
   });
 });
 
