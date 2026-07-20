@@ -5,7 +5,10 @@
   // the repo with no install step. A dependency bump is therefore only real once
   // the bundle is rebuilt; CI's build-check gate fails the PR until it is.
   postUpgradeTasks: {
-    commands: ["mise run build"],
+    // mise isn't on PATH in the Renovate container, so call npm directly here.
+    // mise.toml's build task is just `npm ci` + `npm run build`; CI still runs
+    // `mise run build-check` to gate the committed bundle on the pinned toolchain.
+    commands: ["npm ci", "npm run build"],
     fileFilters: ["dist/**"],
     executionMode: "branch",
   },
