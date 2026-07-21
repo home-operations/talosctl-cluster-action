@@ -8,6 +8,12 @@
   },
   packageRules: [
     {
+      description: "Update the Talos release and talosctl together",
+      matchPackageNames: ["siderolabs/talos", "talosctl"],
+      groupName: "Talos Group",
+      minimumGroupSize: 2,
+    },
+    {
       description: "Keep the Node toolchain on the major that matches the action runtime",
       matchManagers: ["mise"],
       matchPackageNames: ["node"],
