@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/home-operations/talosctl-cluster-action/compare/v0.1.3...v0.1.4) (2026-07-21)
+
+
+### Features
+
+* support leaving nodes in maintenance mode ([#11](https://github.com/home-operations/talosctl-cluster-action/issues/11)) ([f3009f0](https://github.com/home-operations/talosctl-cluster-action/commit/f3009f08437a9d743baa0ba5bfee080b3ae12a31))
+
 ## [0.1.3](https://github.com/home-operations/talosctl-cluster-action/compare/v0.1.2...v0.1.3) (2026-07-20)
 
 
