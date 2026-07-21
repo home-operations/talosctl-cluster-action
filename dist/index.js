@@ -44404,7 +44404,7 @@ var properties = {
 						}
 					},
 					presets: {
-						description: "Boot presets. Maps to --presets. Exactly one of iso, iso-secureboot, pxe, or disk-image must be present.",
+						description: "Boot presets. Maps to --presets. Exactly one of iso, iso-secureboot, pxe, or disk-image must be present. Adding maintenance leaves the nodes unconfigured in maintenance mode: the action then skips the kubeconfig fetch and exports neither KUBECONFIG nor TALOSCONFIG, handing over only the node addresses.",
 						type: "array",
 						minItems: 1,
 						items: {
@@ -44481,6 +44481,13 @@ const withV = (v) => (String(v).startsWith("v") ? String(v) : `v${v}`);
 const withoutV = (v) => String(v).replace(/^v/, "");
 
 const providerOf = (cluster) => cluster.spec?.provider ?? DEFAULT_PROVIDER;
+
+// talosctl's maintenance preset boots the nodes but applies no machine config, so no
+// cluster ever forms behind them. main.js keys off this to skip the kubeconfig fetch
+// and the KUBECONFIG/TALOSCONFIG exports, which would otherwise point later steps at
+// a cluster that does not exist.
+const hasMaintenancePreset = (cluster) =>
+  Boolean(cluster.spec?.qemu?.presets?.includes("maintenance"));
 
 function buildArgs(cluster, ctx = {}) {
   const spec = cluster.spec ?? {};
@@ -45463,16 +45470,28 @@ async function run() {
 
   const endpoint = addresses.controlplanes[0];
 
-  await exec(talosctl, ["kubeconfig", kubeconfig, "--nodes", endpoint, "--force"], {
-    env: { ...process.env, TALOSCONFIG: talosconfig },
-  });
+  // The maintenance preset leaves the nodes unconfigured, so there is no cluster to
+  // fetch a kubeconfig from, and the generated talosconfig's certs match machine
+  // configs that were never applied. Exporting either would point later steps, or the
+  // caller's own bootstrap tooling, at a cluster that does not exist. The node
+  // addresses are the whole hand-off; the nodes answer on the insecure maintenance
+  // API (`talosctl -n <ip> --insecure`).
+  const maintenance = hasMaintenancePreset(cluster);
 
-  exportVariable("TALOSCONFIG", talosconfig);
-  exportVariable("KUBECONFIG", kubeconfig);
+  if (!maintenance) {
+    await exec(talosctl, ["kubeconfig", kubeconfig, "--nodes", endpoint, "--force"], {
+      env: { ...process.env, TALOSCONFIG: talosconfig },
+    });
+
+    exportVariable("TALOSCONFIG", talosconfig);
+    exportVariable("KUBECONFIG", kubeconfig);
+  }
 
   setOutput("cluster-name", name);
   setOutput("provider", provider);
-  setOutput("kubeconfig", kubeconfig);
+  setOutput("kubeconfig", maintenance ? "" : kubeconfig);
+  // Still written by `cluster create` in maintenance mode, alongside the generated
+  // machine configs it belongs to; it becomes valid if the caller applies them.
   setOutput("talosconfig", talosconfig);
   setOutput("schematic-id", schematicId ?? "");
   setOutput("endpoint", endpoint);
@@ -45480,7 +45499,11 @@ async function run() {
   setOutput("controlplane-ips", addresses.controlplanes.join(","));
   setOutput("worker-ips", addresses.workers.join(","));
 
-  info(`Cluster '${name}' ready at ${endpoint}`);
+  info(
+    maintenance
+      ? `Cluster '${name}' nodes booted in maintenance mode; first node at ${endpoint}`
+      : `Cluster '${name}' ready at ${endpoint}`,
+  );
 }
 
 run().catch((err) => setFailed(err.message));

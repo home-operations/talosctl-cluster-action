@@ -60,6 +60,12 @@ jobs:
           # dropped. Needs no KVM, so it is also the fast leg.
           - example: docker
             nodes: 2
+          # The maintenance preset: nodes boot and stay unconfigured, so no cluster
+          # forms, kubectl never applies, and the hand-off is the node addresses plus
+          # an empty kubeconfig output. Verified over the insecure maintenance API.
+          - example: maintenance
+            nodes: 1
+            maintenance: true
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -107,6 +113,7 @@ jobs:
           config: examples/${{ matrix.example }}.yaml
 
       - name: Verify the cluster came up
+        if: ${{ !matrix.maintenance }}
         env:
           EXPECTED_NODES: ${{ matrix.nodes }}
           ENDPOINT: ${{ steps.cluster.outputs.endpoint }}
@@ -122,15 +129,47 @@ jobs:
           # drifts from what the provisioner did, every downstream step misfires.
           talosctl -n "$ENDPOINT" version --short
 
+      # Nodes in maintenance mode never form a cluster, so the check is the inverse
+      # of the kubectl one: the insecure maintenance API answers, the kubeconfig
+      # output is empty, and neither KUBECONFIG nor TALOSCONFIG was exported into
+      # this step's environment.
+      - name: Verify the nodes are in maintenance mode
+        if: matrix.maintenance
+        env:
+          CONTROLPLANE_IPS: ${{ steps.cluster.outputs.controlplane-ips }}
+          KUBECONFIG_OUT: ${{ steps.cluster.outputs.kubeconfig }}
+        run: |
+          if [[ -n "$KUBECONFIG_OUT" ]]; then
+            echo "::error::kubeconfig output should be empty in maintenance mode, got $KUBECONFIG_OUT"
+            exit 1
+          fi
+          if [[ -n "${KUBECONFIG:-}${TALOSCONFIG:-}" ]]; then
+            echo "::error::KUBECONFIG/TALOSCONFIG must not be exported in maintenance mode"
+            exit 1
+          fi
+
+          node="${CONTROLPLANE_IPS%%,*}"
+          # Create returns as soon as the VMs launch, so the API needs a moment to
+          # start answering.
+          echo "waiting for the maintenance API on $node"
+          timeout 5m bash -c "until talosctl -n \"$node\" get links --insecure >/dev/null 2>&1; do sleep 5; done"
+          talosctl -n "$node" get links --insecure
+
       - name: Verify the reported outputs
         env:
           EXAMPLE: ${{ matrix.example }}
+          MAINTENANCE: ${{ matrix.maintenance }}
           PROVIDER: ${{ steps.cluster.outputs.provider }}
           KUBECONFIG_OUT: ${{ steps.cluster.outputs.kubeconfig }}
           TALOSCONFIG_OUT: ${{ steps.cluster.outputs.talosconfig }}
           SCHEMATIC_ID: ${{ steps.cluster.outputs.schematic-id }}
         run: |
-          test -s "$KUBECONFIG_OUT" || { echo "::error::kubeconfig output is empty"; exit 1; }
+          # In maintenance mode no kubeconfig exists; its emptiness is asserted in the
+          # step above. The talosconfig is still written next to the generated machine
+          # configs in both modes.
+          if [[ "$MAINTENANCE" != "true" ]]; then
+            test -s "$KUBECONFIG_OUT" || { echo "::error::kubeconfig output is empty"; exit 1; }
+          fi
           test -s "$TALOSCONFIG_OUT" || { echo "::error::talosconfig output is empty"; exit 1; }
 
           expected=qemu

@@ -168,7 +168,7 @@
               }
             },
             "presets": {
-              "description": "Boot presets. Maps to --presets. Exactly one of iso, iso-secureboot, pxe, or disk-image must be present.",
+              "description": "Boot presets. Maps to --presets. Exactly one of iso, iso-secureboot, pxe, or disk-image must be present. Adding maintenance leaves the nodes unconfigured in maintenance mode: the action then skips the kubeconfig fetch and exports neither KUBECONFIG nor TALOSCONFIG, handing over only the node addresses.",
               "type": "array",
               "minItems": 1,
               "items": { "enum": ["iso", "iso-secureboot", "pxe", "disk-image", "maintenance"] }

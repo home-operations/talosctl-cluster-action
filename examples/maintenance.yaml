@@ -1,0 +1,18 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/home-operations/talosctl-cluster-action/main/schema/talos-cluster.json
+# The maintenance preset: nodes boot from the ISO and stay unconfigured, for repos
+# that bring their own bootstrap tooling and want to exercise it against fresh nodes
+# the way it would run against bare metal. No cluster forms, so the action skips the
+# kubeconfig fetch and hands over only the node addresses; the nodes answer on the
+# insecure maintenance API (`talosctl -n <ip> get links --insecure`).
+apiVersion: v1alpha1
+kind: TalosCluster
+metadata:
+  name: maint
+spec:
+  controlplanes:
+    count: 1
+  workers:
+    count: 0
+  qemu:
+    presets: [iso, maintenance]

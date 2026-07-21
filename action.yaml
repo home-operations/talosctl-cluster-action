@@ -40,9 +40,14 @@ outputs:
   provider:
     description: Provisioner the cluster was created with, qemu or docker.
   kubeconfig:
-    description: Path to the generated kubeconfig. Also exported as $KUBECONFIG.
+    description: >-
+      Path to the generated kubeconfig. Also exported as $KUBECONFIG. Empty when
+      the maintenance preset leaves the nodes unconfigured, since no cluster forms.
   talosconfig:
-    description: Path to the generated talosconfig. Also exported as $TALOSCONFIG.
+    description: >-
+      Path to the generated talosconfig. Also exported as $TALOSCONFIG, except under
+      the maintenance preset, where its certs match machine configs that were never
+      applied; the file is still written next to those configs.
   schematic-id:
     description: Image Factory schematic id the nodes booted from, if one was used.
   endpoint:
