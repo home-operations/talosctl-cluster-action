@@ -76,7 +76,7 @@ mutation in your workflow, where you can see it. Both providers need `talosctl`
 - name: Install talosctl
   env:
     # renovate: datasource=github-releases depName=siderolabs/talos
-    TALOS_VERSION: v1.13.6
+    TALOS_VERSION: v1.13.7
   run: |
     curl -sfL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o talosctl
     sudo install -m 0755 talosctl /usr/local/bin/talosctl
@@ -106,7 +106,7 @@ runners and the runner user is already in the `docker` group, so no install is n
 - name: Install talosctl
   env:
     # renovate: datasource=github-releases depName=siderolabs/talos
-    TALOS_VERSION: v1.13.6
+    TALOS_VERSION: v1.13.7
   run: |
     curl -sfL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o talosctl
     sudo install -m 0755 talosctl /usr/local/bin/talosctl
