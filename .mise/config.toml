@@ -21,7 +21,7 @@ yq = "4.53.3"
 # Only used by `mise run e2e` to exercise the action against a real cluster on a
 # KVM-capable host. Consumers pin their own talosctl; the action resolves whatever
 # the caller provides.
-talosctl = "1.13.6"
+talosctl = "1.13.7"
 
 [tasks.install]
 description = "Install npm dependencies from the lockfile"

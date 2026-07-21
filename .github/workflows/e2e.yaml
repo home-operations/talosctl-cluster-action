@@ -28,7 +28,7 @@ permissions:
 
 env:
   # renovate: datasource=github-releases depName=siderolabs/talos
-  TALOS_VERSION: v1.13.6
+  TALOS_VERSION: v1.13.7
 
 jobs:
   e2e:
