@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { buildArgs, nodeAddresses } from "../src/args.js";
+import { buildArgs, hasMaintenancePreset, nodeAddresses } from "../src/args.js";
 
 const cluster = (spec) => ({
   apiVersion: "v1alpha1",
@@ -90,6 +90,22 @@ describe("buildArgs", () => {
     });
     assert.equal(valueOf(args, "--schematic-id"), "abc123");
     assert.equal(valueOf(args, "--talosconfig-destination"), "/tmp/dev/talosconfig");
+  });
+});
+
+describe("hasMaintenancePreset", () => {
+  it("detects the maintenance preset among the boot presets", () => {
+    assert.equal(
+      hasMaintenancePreset(cluster({ qemu: { presets: ["iso", "maintenance"] } })),
+      true,
+    );
+  });
+
+  it("is false without it", () => {
+    assert.equal(hasMaintenancePreset(cluster()), false);
+    assert.equal(hasMaintenancePreset(cluster({})), false);
+    assert.equal(hasMaintenancePreset(cluster({ qemu: {} })), false);
+    assert.equal(hasMaintenancePreset(cluster({ qemu: { presets: ["iso"] } })), false);
   });
 });
 

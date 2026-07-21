@@ -333,6 +333,52 @@ and passed through as `--image-factory-auth`; it is registered as a secret, so t
 runner masks it in the command line the log echoes. Keep it in a GitHub secret rather
 than committing it, and note it needs talosctl v1.13 or newer.
 
+### Maintenance mode
+
+talosctl's `maintenance` preset ("Skip applying machine configuration and leave the
+machines in maintenance mode") passes through like any other, and the action detects
+it. That turns the action into a "give me unconfigured Talos nodes on this runner"
+primitive for repos that bring their own config management: an e2e workflow for a
+cluster template can exercise its real bootstrap flow against freshly booted nodes,
+the same way a user would against bare metal.
+
+```yaml
+spec:
+  controlplanes:
+    count: 1
+  workers:
+    count: 0
+  qemu:
+    presets: [iso, maintenance]
+```
+
+No cluster forms behind the nodes, so the action skips the kubeconfig fetch and
+exports neither `KUBECONFIG` nor `TALOSCONFIG`; the `kubeconfig` output is empty.
+The hand-off is the `controlplane-ips`, `worker-ips`, and `gateway` outputs: the
+nodes answer on the insecure maintenance API, and your tooling takes it from there.
+
+```yaml
+- uses: home-operations/talosctl-cluster-action@v1
+  id: cluster
+  with:
+    config: test/e2e/maintenance.yaml
+
+- run: talosctl -n "${IPS%%,*}" get links --insecure
+  env:
+    IPS: ${{ steps.cluster.outputs.controlplane-ips }}
+```
+
+Three details worth knowing:
+
+- **Create returns as soon as the VMs launch**, since there is no configuration to
+  wait on. Give the maintenance API a moment to start answering, or poll it.
+- **Machine configs are still generated**, with the profile and any
+  `spec.config-patches` folded in; they are written to `config-dir` but never
+  applied, and the `talosconfig` output points at the matching client config. Apply
+  them yourself or ignore them entirely.
+- **The post-step teardown is unchanged**: the nodes and their network are destroyed
+  at the end of the job as usual.
+
 ## Using it in a matrix
 
 Testing several cluster shapes is the common case: one leg per shape, each on its own
@@ -457,6 +503,9 @@ Three things worth knowing before you scale the matrix out:
 | `gateway`          | Host end of the QEMU bridge (first address in the CIDR).  |
 | `controlplane-ips` | Comma-separated control plane addresses.                  |
 | `worker-ips`       | Comma-separated worker addresses.                         |
+
+Under the [maintenance preset](#maintenance-mode) `kubeconfig` is empty and neither
+environment variable is exported; everything else is emitted as usual.
 
 ## Notes
 

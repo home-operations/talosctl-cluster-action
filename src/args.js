@@ -18,6 +18,13 @@ const withoutV = (v) => String(v).replace(/^v/, "");
 
 export const providerOf = (cluster) => cluster.spec?.provider ?? DEFAULT_PROVIDER;
 
+// talosctl's maintenance preset boots the nodes but applies no machine config, so no
+// cluster ever forms behind them. main.js keys off this to skip the kubeconfig fetch
+// and the KUBECONFIG/TALOSCONFIG exports, which would otherwise point later steps at
+// a cluster that does not exist.
+export const hasMaintenancePreset = (cluster) =>
+  Boolean(cluster.spec?.qemu?.presets?.includes("maintenance"));
+
 export function buildArgs(cluster, ctx = {}) {
   const spec = cluster.spec ?? {};
   const provider = providerOf(cluster);

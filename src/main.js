@@ -5,7 +5,7 @@ import * as core from "@actions/core";
 import { exec } from "@actions/exec";
 
 import { loadCluster, validateSocketPath } from "./config.js";
-import { buildArgs, nodeAddresses, providerOf, withV } from "./args.js";
+import { buildArgs, hasMaintenancePreset, nodeAddresses, providerOf, withV } from "./args.js";
 import {
   concatPatches,
   resolveProfilePatches,
@@ -152,16 +152,28 @@ export async function run() {
 
   const endpoint = addresses.controlplanes[0];
 
-  await exec(talosctl, ["kubeconfig", kubeconfig, "--nodes", endpoint, "--force"], {
-    env: { ...process.env, TALOSCONFIG: talosconfig },
-  });
+  // The maintenance preset leaves the nodes unconfigured, so there is no cluster to
+  // fetch a kubeconfig from, and the generated talosconfig's certs match machine
+  // configs that were never applied. Exporting either would point later steps, or the
+  // caller's own bootstrap tooling, at a cluster that does not exist. The node
+  // addresses are the whole hand-off; the nodes answer on the insecure maintenance
+  // API (`talosctl -n <ip> --insecure`).
+  const maintenance = hasMaintenancePreset(cluster);
 
-  core.exportVariable("TALOSCONFIG", talosconfig);
-  core.exportVariable("KUBECONFIG", kubeconfig);
+  if (!maintenance) {
+    await exec(talosctl, ["kubeconfig", kubeconfig, "--nodes", endpoint, "--force"], {
+      env: { ...process.env, TALOSCONFIG: talosconfig },
+    });
+
+    core.exportVariable("TALOSCONFIG", talosconfig);
+    core.exportVariable("KUBECONFIG", kubeconfig);
+  }
 
   core.setOutput("cluster-name", name);
   core.setOutput("provider", provider);
-  core.setOutput("kubeconfig", kubeconfig);
+  core.setOutput("kubeconfig", maintenance ? "" : kubeconfig);
+  // Still written by `cluster create` in maintenance mode, alongside the generated
+  // machine configs it belongs to; it becomes valid if the caller applies them.
   core.setOutput("talosconfig", talosconfig);
   core.setOutput("schematic-id", schematicId ?? "");
   core.setOutput("endpoint", endpoint);
@@ -169,7 +181,11 @@ export async function run() {
   core.setOutput("controlplane-ips", addresses.controlplanes.join(","));
   core.setOutput("worker-ips", addresses.workers.join(","));
 
-  core.info(`Cluster '${name}' ready at ${endpoint}`);
+  core.info(
+    maintenance
+      ? `Cluster '${name}' nodes booted in maintenance mode; first node at ${endpoint}`
+      : `Cluster '${name}' ready at ${endpoint}`,
+  );
 }
 
 run().catch((err) => core.setFailed(err.message));
