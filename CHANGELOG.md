@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.5](https://github.com/home-operations/talosctl-cluster-action/compare/v0.1.4...v0.1.5) (2026-07-22)
+
+
+### Features
+
+* **deps:** update dependency oxlint (1.74.0 → 1.75.0) ([#20](https://github.com/home-operations/talosctl-cluster-action/issues/20)) ([5713a09](https://github.com/home-operations/talosctl-cluster-action/commit/5713a09919f2b5d718600b3e3bbd33f2989f4cc5))
+
+
+### Documentation
+
+* clarify the runner swapfile is host swap, not cluster swap ([#21](https://github.com/home-operations/talosctl-cluster-action/issues/21)) ([96d6216](https://github.com/home-operations/talosctl-cluster-action/commit/96d621627f991879699aeef6d8dd47fd55441aa6))
+
+
+### Miscellaneous Chores
+
+* **github-release:** Update Talos Group ([#17](https://github.com/home-operations/talosctl-cluster-action/issues/17)) ([8914d43](https://github.com/home-operations/talosctl-cluster-action/commit/8914d43b248297b9d797319dd16ecfca9bda22dd))
+* **mise:** Update tool oxfmt (0.59.0 → 0.60.0) ([#19](https://github.com/home-operations/talosctl-cluster-action/issues/19)) ([a542e02](https://github.com/home-operations/talosctl-cluster-action/commit/a542e023da1fb5386cae441ffd34be605624bb4f))
+* **mise:** Update tool zizmor (1.27.0 → 1.28.0) ([#18](https://github.com/home-operations/talosctl-cluster-action/issues/18)) ([57ddf1e](https://github.com/home-operations/talosctl-cluster-action/commit/57ddf1e10e5520300d20f3bceb7e596837344a17))
+* **renovate:** group Talos updates ([#15](https://github.com/home-operations/talosctl-cluster-action/issues/15)) ([467fba0](https://github.com/home-operations/talosctl-cluster-action/commit/467fba06fcd52bd0b4ea2848d3d8cc693b391142))
+
 ## [0.1.4](https://github.com/home-operations/talosctl-cluster-action/compare/v0.1.3...v0.1.4) (2026-07-21)
 
 
