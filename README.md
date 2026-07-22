@@ -86,9 +86,12 @@ mutation in your workflow, where you can see it. Both providers need `talosctl`
     sudo apt-get update
     sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
 
-# Headroom for the upgrade phase, when each node unpacks an installer alongside etcd
-# and the API server. Its own file, so it adds to the runner's existing swap. Skip it
-# and a 16GB runner will OOM mid-upgrade, which reads as a flaky test.
+# Runner swap, for the runner's own kernel, not the cluster. The nodes are QEMU VMs,
+# so their RAM is ordinary host memory: under an upgrade's transient spike (each node
+# unpacking an installer alongside etcd and the API server) the kernel pages a QEMU
+# process out to here instead of OOM-killing it, which would read as a flaky test. The
+# guest never sees this swap, so it needs no Talos or kubelet config. Its own file, so
+# it adds to the runner's existing swap; skip it and a 16GB runner OOMs mid-upgrade.
 - name: Enable swap
   run: |
     sudo fallocate -l 8G /mnt/e2e-swapfile
