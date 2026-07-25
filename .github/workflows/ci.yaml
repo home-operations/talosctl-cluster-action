@@ -1,18 +1,22 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-name: E2E
+name: CI
 
 on:
-  pull_request:
+  push:
     branches:
       - main
     paths-ignore:
       - "**.md"
       - ".release-please-manifest.json"
+  pull_request:
+    branches:
+      - main
+  merge_group:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -23,9 +27,42 @@ env:
   TALOS_VERSION: v1.13.7
 
 jobs:
-  e2e:
+  bundle-freshness:
     if: >-
       ${{ !(startsWith(github.head_ref, 'release-please--')
+      && github.event.pull_request.head.repo.full_name == github.repository) }}
+    name: Bundle Freshness
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Mise
+        uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4.2.1
+        with:
+          experimental: true
+          install_args: --locked
+
+      # GitHub executes dist/, not src/. A src change that was not rebuilt ships
+      # nothing, and the action would silently keep running the previous version.
+      - name: Check the committed bundle is current
+        run: mise run build-check
+
+      - name: Upload rebuilt bundle
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
+
+  e2e:
+    if: >-
+      ${{ github.event_name != 'push'
+      && !(startsWith(github.head_ref, 'release-please--')
       && github.event.pull_request.head.repo.full_name == github.repository) }}
     name: E2E (${{ matrix.example }})
     runs-on: ubuntu-24.04
@@ -207,3 +244,75 @@ jobs:
         run: |
           kubectl get nodes,pods -A -o wide || true
           kubectl get events -A --field-selector type=Warning --sort-by=.lastTimestamp || true
+
+  lint:
+    if: >-
+      ${{ !(startsWith(github.head_ref, 'release-please--')
+      && github.event.pull_request.head.repo.full_name == github.repository) }}
+    name: Lint
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Mise
+        uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4.2.1
+        with:
+          experimental: true
+          install_args: --locked
+
+      - name: Lint workflows and shell
+        run: mise run lint
+
+      - name: Check formatting
+        run: |
+          mise run fmt
+          git diff --exit-code
+
+  unit-test:
+    if: >-
+      ${{ !(startsWith(github.head_ref, 'release-please--')
+      && github.event.pull_request.head.repo.full_name == github.repository) }}
+    name: Unit Test
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Mise
+        uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4.2.1
+        with:
+          experimental: true
+          install_args: --locked
+
+      - name: Run tests
+        run: mise run test
+
+  status:
+    if: ${{ !cancelled() }}
+    name: Build Success
+    needs:
+      - bundle-freshness
+      - e2e
+      - lint
+      - unit-test
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Any jobs failed?
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: |
+          exit 1
+
+      - name: All jobs passed or skipped?
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: |
+          echo "All jobs passed or skipped" && echo "${{ toJSON(needs.*.result) }}"
