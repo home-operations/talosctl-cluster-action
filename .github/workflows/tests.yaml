@@ -26,6 +26,9 @@ permissions:
 
 jobs:
   test:
+    if: >-
+      ${{ !(startsWith(github.head_ref, 'release-please--')
+      && github.event.pull_request.head.repo.full_name == github.repository) }}
     name: Unit Tests
     runs-on: ubuntu-24.04
     permissions:
@@ -46,6 +49,9 @@ jobs:
         run: mise run test
 
   build-check:
+    if: >-
+      ${{ !(startsWith(github.head_ref, 'release-please--')
+      && github.event.pull_request.head.repo.full_name == github.repository) }}
     name: Bundle Freshness
     runs-on: ubuntu-24.04
     permissions:
