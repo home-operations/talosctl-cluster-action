@@ -14,9 +14,11 @@
       minimumGroupSize: 2,
     },
     {
-      description: "Keep the Node toolchain on the major that matches the action runtime",
-      matchManagers: ["mise"],
+      description: "Update the mise toolchain and the package.json engines floor together",
+      matchManagers: ["mise", "npm"],
       matchPackageNames: ["node"],
+      groupName: "Node Group",
+      minimumGroupSize: 2,
       allowedVersions: "<25",
     },
   ],
