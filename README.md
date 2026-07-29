@@ -208,9 +208,17 @@ makes your cluster different:
 | `init_on_alloc=0`                                                 | Zeroing every allocation costs cycles in a throwaway guest. |
 | kubelet `imageGCHighThresholdPercent` + `evictionHard` at zero    | Stops image GC and pod eviction from reading as flakes.     |
 | kubelet `serializeImagePulls: false` (`maxParallelImagePulls: 3`) | Pulls images in parallel, the slowest part of a cold start. |
+| `machine.time.disabled`                                           | NTP sync gates etcd, the kubelet and trustd on every boot.  |
+| `cluster.discovery.enabled: false`                                | Nothing local needs the public discovery service.           |
 | etcd `unsafe-no-fsync`                                            | Durability for I/O, on a cluster about to be deleted.       |
 | apiserver `auditPolicy: None`                                     | Talos logs every request to disk by default.                |
 | `machine.install.image` pinned to the schematic                   | Only when a schematic is used; see below.                   |
+
+`mitigations=off` does not cover page-table isolation, and nothing can make it. Talos
+bakes `pti=on` into every image, and since Linux 6.17 an explicit `pti=on` outranks
+`mitigations=off`, so PTI stays on even on CPUs carrying no Meltdown bug. Negating it is
+not available either: Talos enforces `pti=on` and `slab_nomerge` as KSPP requirements and
+a node missing either fails its `systemRequirements` boot phase.
 
 Every run logs exactly what it applied; nothing here happens silently.
 
