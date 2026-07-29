@@ -45218,6 +45218,15 @@ const DEFAULT_PROFILE = "ephemeral";
 // kernel-config default rather than a plain cmdline arg, and Image Factory does not
 // guarantee arg order (siderolabs/talos#11310), so a bare init_on_alloc=0 can lose to
 // the baked-in default. Stripping it first with -init_on_alloc makes the override stick.
+//
+// mitigations=off does not cover page-table isolation, and cannot be made to. Talos
+// bakes pti=on into every image, and since Linux 6.17 an explicit value wins:
+// pti_check_boottime_disable() consults the attack-vector table mitigations=off clears
+// only while pti_mode is PTI_AUTO, so pti=on still reaches setup_force_cpu_cap() and PTI
+// stays on even where the CPU carries no Meltdown bug. Stripping it is not an option
+// either: pkg/kernel/kspp enforces slab_nomerge and pti=on by exact value, and a node
+// missing either fails the systemRequirements phase and never boots. init_on_alloc is
+// overridable here precisely because Talos left it out of that list.
 const KERNEL_ARGS = [
   "talos.dashboard.disabled=1",
   "talos.auditd.disabled=1",
@@ -45268,6 +45277,27 @@ const IMAGE_PULLS = {
   },
 };
 
+// etcd, the kubelet and trustd all declare timeresource.NewSyncCondition in their
+// Condition(), so none of them starts until NTP against the public pool has answered:
+// time sync is a serialization point in front of the whole bring-up, and an outbound
+// dependency that hangs the run when it is blocked. Disabling it marks time synced
+// immediately rather than skipping a check that would otherwise fail, because the
+// guest clock is the host's, seeded through the emulated RTC. Already a no-op under
+// docker, which Talos runs in container mode with sync off regardless.
+const TIME_SYNC = {
+  name: "NTP time sync disabled",
+  patch: { machine: { time: { disabled: true } } },
+};
+
+// talosctl hard-codes EnableClusterDiscovery, and its qemu subcommand exposes no flag
+// to turn it off, so every throwaway cluster registers its nodes as affiliates with the
+// public discovery service at discovery.talos.dev. Nothing here needs it: the nodes sit
+// on a local bridge at addresses the provisioner assigned, and KubeSpan is off.
+const DISCOVERY = {
+  name: "cluster discovery service off",
+  patch: { cluster: { discovery: { enabled: false } } },
+};
+
 // talosctl never sets machine.install.image, so nodes come up on the generic
 // installer. On the first `talosctl upgrade` that silently drops every extension the
 // schematic baked in. Only meaningful when a schematic is in play.
@@ -45316,8 +45346,10 @@ function profileKernelArgs(profile, provider = DEFAULT_PROVIDER) {
 function profilePatches(profile, { hasSchematic = false } = {}) {
   if (profile !== "ephemeral") return emptyPatches();
 
+  const cluster = [KUBELET_GC, IMAGE_PULLS, TIME_SYNC, DISCOVERY];
+
   return {
-    cluster: hasSchematic ? [KUBELET_GC, IMAGE_PULLS, INSTALL_IMAGE] : [KUBELET_GC, IMAGE_PULLS],
+    cluster: hasSchematic ? [...cluster, INSTALL_IMAGE] : cluster,
     controlplanes: [ETCD_FSYNC, AUDIT_POLICY],
     workers: [],
   };

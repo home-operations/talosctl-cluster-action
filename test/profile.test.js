@@ -38,10 +38,28 @@ describe("profile", () => {
     ]);
   });
 
+  // Talos enforces these two by exact value in pkg/kernel/kspp and refuses to finish the
+  // systemRequirements phase without them, so negating either bricks the node at boot.
+  // Verified the hard way: a node booted without them logs "KSPP kernel parameter ... is
+  // required" and the create times out waiting for an API that never comes up.
+  it("never negates a KSPP-enforced kernel parameter", () => {
+    const args = profileKernelArgs("ephemeral");
+    assert.ok(!args.includes("-pti"));
+    assert.ok(!args.includes("-slab_nomerge"));
+  });
+
   it("turns on bounded parallel image pulls", () => {
     const cluster = JSON.stringify(profilePatches("ephemeral").cluster);
     assert.match(cluster, /"serializeImagePulls":false/);
     assert.match(cluster, /"maxParallelImagePulls":3/);
+  });
+
+  // Both are valid in a worker's cluster/machine section as well as a control plane's,
+  // so they ride the all-node patch rather than being split per role.
+  it("turns off time sync and cluster discovery on every node", () => {
+    const cluster = JSON.stringify(profilePatches("ephemeral").cluster);
+    assert.match(cluster, /"time":\{"disabled":true\}/);
+    assert.match(cluster, /"discovery":\{"enabled":false\}/);
   });
 
   it("puts etcd and audit settings on control planes only", () => {
@@ -96,7 +114,9 @@ describe("profile", () => {
     assert.match(lines.join("\n"), /kubelet/);
     assert.match(lines.join("\n"), /parallel image pulls/);
     assert.match(lines.join("\n"), /etcd/);
-    assert.equal(lines.length, 6);
+    assert.match(lines.join("\n"), /time sync/);
+    assert.match(lines.join("\n"), /discovery/);
+    assert.equal(lines.length, 8);
   });
 });
 
