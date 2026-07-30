@@ -12,7 +12,7 @@ actionlint = "1.7.12"
 # the field. Bump the minor freely; bump the major only when GitHub ships a runtime
 # to match, and change `using:` in the same commit.
 node = "24.18.1"
-npm = "12.0.1"
+npm = "12.0.2"
 lefthook = "2.1.10"
 oxfmt = "0.61.0"
 shellcheck = "0.11.0"
