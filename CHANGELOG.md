@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.0](https://github.com/home-operations/talosctl-cluster-action/compare/v0.1.6...v0.2.0) (2026-07-31)
+
+
+### ⚠ BREAKING CHANGES
+
+* drive the qemu provider through talosctl cluster create dev ([#45](https://github.com/home-operations/talosctl-cluster-action/issues/45))
+
+### Features
+
+* drive the qemu provider through talosctl cluster create dev ([#45](https://github.com/home-operations/talosctl-cluster-action/issues/45)) ([5829bc5](https://github.com/home-operations/talosctl-cluster-action/commit/5829bc5fc413899e54c2db2650a474cedf0c8909))
+
 ## [0.1.6](https://github.com/home-operations/talosctl-cluster-action/compare/v0.1.5...v0.1.6) (2026-07-31)
 
 
