@@ -4,7 +4,14 @@ import path from "node:path";
 import * as core from "@actions/core";
 import { exec } from "@actions/exec";
 
-import { bootAssetsDir, bootAssetsKey, restoreBootAssets, saveBootAssets } from "./cache.js";
+import {
+  bootAssetsDir,
+  bootAssetsKey,
+  preseedBootAssets,
+  restoreBootAssets,
+  saveBootAssets,
+} from "./cache.js";
+import { bootAsset, installerImage } from "./factory.js";
 import { loadCluster, validateSocketPath } from "./config.js";
 import { buildArgs, hasMaintenancePreset, nodeAddresses, providerOf, withV } from "./args.js";
 import {
@@ -16,7 +23,7 @@ import {
 } from "./patches.js";
 import { registerSchematic, schematicDocument, toYaml, withKernelArgs } from "./schematic.js";
 import { waitForMaintenanceNodes } from "./maintenance.js";
-import { assertUsableVersion, resolveTalosctl } from "./talosctl.js";
+import { assertSupportedTargetVersion, assertUsableVersion, resolveTalosctl } from "./talosctl.js";
 import { assertDocker, assertKvm, assertNetworkAvailable, assertStateWritable } from "./host.js";
 import { describeProfile, profileKernelArgs, profilePatches, DEFAULT_PROFILE } from "./profile.js";
 
@@ -93,18 +100,46 @@ export async function run() {
   // v-prefixed here, not just on the flag: this value also fills ${TALOS_VERSION} in
   // the profile's install-image pin, and the Factory publishes no unprefixed tag.
   const talosVersion = withV(qemu["talos-version"] ?? clientVersion);
+  // The version the nodes will run, not just the binary: a pre-1.14 node rejects
+  // the typed config documents the profile emits. On docker that version is the
+  // container image tag, when it carries one.
+  if (isQemu) {
+    assertSupportedTargetVersion(talosVersion);
+  } else {
+    const imageTag = /:(v?\d+\.\d+\.\d+\S*)$/.exec(cluster.spec?.docker?.image ?? "")?.[1];
+    if (imageTag) assertSupportedTargetVersion(imageTag, "the spec.docker.image tag");
+  }
+
   const vars = substitutions({ schematicId, cluster, talosVersion, gateway: addresses.gateway });
 
   // Profile first: talosctl applies patches in order with a deep merge, so the
   // caller's patches override the profile key by key and leave the rest standing.
-  const profileOptions = { hasSchematic: Boolean(schematicId), provider };
   const patches = concatPatches(
-    resolveProfilePatches(profilePatches(profile, profileOptions), { vars }),
+    resolveProfilePatches(profilePatches(profile, provider), { vars }),
     resolvePatches(cluster, { baseDir, vars }),
   );
 
-  for (const line of describeProfile(profile, profileOptions)) {
+  for (const line of describeProfile(profile)) {
     core.info(`profile ${profile}: ${line}`);
+  }
+
+  // The dev subcommand takes boot media as URLs rather than a schematic id, so
+  // the action builds the same Factory references the qemu subcommand's presets
+  // would have (see factory.js), and pins the install image the way the qemu
+  // subcommand's applyDefaultSettings does.
+  const factoryUrl = qemu["image-factory"]?.url;
+  const asset = isQemu
+    ? bootAsset({ presets: qemu.presets, factoryUrl, schematicId, talosVersion })
+    : undefined;
+  const installImage = isQemu
+    ? installerImage({ factoryUrl, schematicId, talosVersion, secureboot: asset.secureboot })
+    : undefined;
+
+  // dev has no --image-factory-auth; a private factory's boot media is fetched by
+  // the action itself, with credentials in headers rather than argv, into the
+  // URL-keyed cache talosctl checks before downloading anything.
+  if (isQemu && factoryAuth) {
+    await preseedBootAssets([asset.url], factoryAuth);
   }
 
   for (const patch of [...patches.cluster, ...patches.controlplanes, ...patches.workers]) {
@@ -146,7 +181,13 @@ export async function run() {
   const talosconfig = path.join(configDir, "talosconfig");
   const kubeconfig = path.join(configDir, "kubeconfig");
 
-  const args = buildArgs(cluster, { schematicId, patches, talosconfig });
+  const args = buildArgs(cluster, {
+    patches,
+    talosconfig,
+    talosVersion,
+    bootAsset: asset,
+    installImage,
+  });
 
   // The QEMU provisioner's first preflight check is `os.Geteuid() != 0`, so root is
   // not a nicety there, it is a hard gate. `-E` matters as much as the elevation:

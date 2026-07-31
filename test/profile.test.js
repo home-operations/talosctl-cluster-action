@@ -7,15 +7,8 @@ import {
   describeProfile,
   DEFAULT_PROFILE,
 } from "../src/profile.js";
-import { concatPatches, resolvePatch, substitutions } from "../src/patches.js";
+import { concatPatches } from "../src/patches.js";
 import { withKernelArgs } from "../src/schematic.js";
-import { parseCluster } from "../src/config.js";
-import { withV } from "../src/args.js";
-
-// Through parseCluster so the fixture cannot drift into a shape the schema rejects.
-const cluster = parseCluster(
-  "apiVersion: v1alpha1\nkind: TalosCluster\nmetadata:\n  name: dev\nspec:\n  qemu:\n    talos-version: v1.13.6\n",
-);
 
 describe("profile", () => {
   it("defaults to ephemeral", () => {
@@ -56,10 +49,32 @@ describe("profile", () => {
 
   // Both are valid in a worker's cluster/machine section as well as a control plane's,
   // so they ride the all-node patch rather than being split per role.
-  it("turns off time sync and cluster discovery on every node", () => {
+  it("turns off time sync on every node", () => {
     const cluster = JSON.stringify(profilePatches("ephemeral").cluster);
     assert.match(cluster, /"time":\{"disabled":true\}/);
-    assert.match(cluster, /"discovery":\{"enabled":false\}/);
+  });
+
+  // On the qemu provider discovery is off at generation time, so no patch; the
+  // docker subcommand has no such flag, so the generated 1.14 document is deleted.
+  it("deletes the discovery document on docker only", () => {
+    const qemu = JSON.stringify(profilePatches("ephemeral").cluster);
+    assert.doesNotMatch(qemu, /DiscoveryServiceConfig/);
+
+    const docker = JSON.stringify(profilePatches("ephemeral", "docker").cluster);
+    assert.match(docker, /"kind":"DiscoveryServiceConfig"/);
+    assert.match(docker, /"\$patch":"delete"/);
+  });
+
+  // The 1.14 contract generates typed documents for these areas and rejects a
+  // bundle that also sets them in the v1alpha1 sections.
+  it("writes kubelet and audit settings as their 1.14 typed documents", () => {
+    const cluster = JSON.stringify(profilePatches("ephemeral").cluster);
+    assert.match(cluster, /"kind":"KubeletConfig"/);
+    assert.doesNotMatch(cluster, /machine.*kubelet/);
+
+    const cp = JSON.stringify(profilePatches("ephemeral").controlplanes);
+    assert.match(cp, /"kind":"KubeAuditPolicyConfig"/);
+    assert.doesNotMatch(cp, /apiServer/);
   });
 
   it("puts etcd and audit settings on control planes only", () => {
@@ -68,55 +83,26 @@ describe("profile", () => {
     const patches = profilePatches("ephemeral");
     const cp = JSON.stringify(patches.controlplanes);
     assert.match(cp, /unsafe-no-fsync/);
-    assert.match(cp, /auditPolicy/);
+    assert.match(cp, /KubeAuditPolicyConfig/);
     assert.doesNotMatch(JSON.stringify(patches.cluster), /unsafe-no-fsync/);
     assert.deepEqual(patches.workers, []);
   });
 
-  it("pins the install image only when a schematic is in play", () => {
-    const without = JSON.stringify(profilePatches("ephemeral", { hasSchematic: false }).cluster);
-    const with_ = JSON.stringify(profilePatches("ephemeral", { hasSchematic: true }).cluster);
-    assert.doesNotMatch(without, /install/);
-    assert.match(with_, /factory\.talos\.dev\/installer/);
-  });
-
-  const pinnedImage = (vars) => {
-    const { cluster } = profilePatches("ephemeral", { hasSchematic: true });
-    const installImage = cluster.find((entry) => entry.name.includes("install image"));
-    return JSON.parse(resolvePatch(installImage.patch, { vars })).machine.install.image;
-  };
-
-  it("resolves the pinned image against the registered schematic", () => {
-    const vars = substitutions({ schematicId: "abc123", cluster, talosVersion: "v1.13.6" });
-    assert.equal(pinnedImage(vars), "factory.talos.dev/installer/abc123:v1.13.6");
-  });
-
-  // The flag is v-normalised, and the pinned image has to be too: the Image Factory
-  // publishes no unprefixed tag, so an unprefixed pin fails at first upgrade.
-  it("pins a v-prefixed tag even when the spec omits the v", () => {
-    const vars = substitutions({
-      schematicId: "abc123",
-      cluster,
-      talosVersion: withV("1.13.6"),
-    });
-    assert.equal(pinnedImage(vars), "factory.talos.dev/installer/abc123:v1.13.6");
-  });
-
-  it("falls back to talosctl's own version when the spec omits one", () => {
-    const bare = { ...cluster, spec: {} };
-    const vars = substitutions({ schematicId: "abc", cluster: bare, talosVersion: "v1.13.6" });
-    assert.equal(pinnedImage(vars), "factory.talos.dev/installer/abc:v1.13.6");
+  // The install image pin is not a profile patch: the action passes
+  // --install-image itself, the way `cluster create qemu` pins it internally.
+  it("never patches the install image", () => {
+    assert.doesNotMatch(JSON.stringify(profilePatches("ephemeral")), /install/);
   });
 
   it("names everything it applied, so nothing is silent", () => {
-    const lines = describeProfile("ephemeral", { hasSchematic: true });
+    const lines = describeProfile("ephemeral");
     assert.match(lines.join("\n"), /kernel args/);
     assert.match(lines.join("\n"), /kubelet/);
     assert.match(lines.join("\n"), /parallel image pulls/);
     assert.match(lines.join("\n"), /etcd/);
     assert.match(lines.join("\n"), /time sync/);
     assert.match(lines.join("\n"), /discovery/);
-    assert.equal(lines.length, 8);
+    assert.equal(lines.length, 7);
   });
 });
 

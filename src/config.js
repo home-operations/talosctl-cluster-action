@@ -25,19 +25,18 @@ const PROVIDER_KEYS = {
   docker: new Set(Object.keys(schema.properties.spec.properties.docker.properties)),
 };
 
-// Keys that read as obvious but that `cluster create qemu` does not expose. Without
-// these, `additionalProperties: false` reports a bare "unknown property" and leaves
-// the reader to discover the reason from talosctl's source.
+// Keys that read as obvious but that the spec does not expose. Without these,
+// `additionalProperties: false` reports a bare "unknown property" and leaves the
+// reader guessing at the reason.
 const UNSUPPORTED = {
   "spec.network.ipv6":
-    "IPv6 is only available on `talosctl cluster create dev`, which cannot use Image Factory schematics. For IPv6 inside the cluster, patch cluster.network.podSubnets/serviceSubnets under spec.config-patches instead.",
-  "spec.network.ipv4":
-    "IPv4 is always on for `cluster create qemu`; the toggle exists only on `cluster create dev`.",
-  "spec.network.nameservers": "Only available on `talosctl cluster create dev`.",
+    "Not exposed by this action yet. For IPv6 inside the cluster, patch cluster.network.podSubnets/serviceSubnets under spec.config-patches instead.",
+  "spec.network.ipv4": "IPv4 is always on.",
+  "spec.network.nameservers": "Not exposed by this action.",
   "spec.install-image":
-    "Not exposed by `cluster create qemu`. Pin machine.install.image through spec.config-patches, using ${SCHEMATIC_ID} to match the schematic this action registers.",
+    "The action pins machine.install.image to the Factory installer for the schematic in play itself; to override it anyway, patch machine.install.image through spec.config-patches.",
   "spec.registry-mirror":
-    "Not exposed by `cluster create qemu`. Patch machine.registries.mirrors under spec.config-patches instead, with ${GATEWAY} to reach a mirror the runner serves.",
+    "Patch machine.registries.mirrors under spec.config-patches instead, with ${GATEWAY} to reach a mirror the runner serves.",
   "spec.config-patches.all":
     "Patches applied to every node go under spec.config-patches.cluster, alongside controlplanes and workers.",
   "spec.controlplanes.disk": "Disks are cluster-wide, not per role. Use spec.qemu.disks.",
@@ -141,6 +140,16 @@ export function parseCluster(source) {
 
   if (doc.spec?.qemu?.schematic && doc.spec?.qemu?.["schematic-id"]) {
     problems.push("spec.qemu.schematic and spec.qemu.schematic-id are mutually exclusive");
+  }
+
+  // The action maps the boot-method preset onto the dev subcommand's path flags
+  // itself, so this validation no longer happens inside talosctl.
+  const bootMethods = (doc.spec?.qemu?.presets ?? []).filter((preset) => preset !== "maintenance");
+  if (bootMethods.length > 1) {
+    problems.push(
+      `spec.qemu.presets names more than one boot method (${bootMethods.join(", ")}); ` +
+        "exactly one of iso, iso-secureboot, pxe, or disk-image may be present",
+    );
   }
 
   // docker never registers --controlplanes; it always runs exactly one.

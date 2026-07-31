@@ -59,7 +59,6 @@ spec:
       () => parseCluster(`${minimal}spec:\n  network:\n    cidr: 10.5.0.0/24\n    ipv6: true\n`),
       (err) => {
         assert.match(err.message, /spec\.network\.ipv6/);
-        assert.match(err.message, /cluster create dev/);
         assert.match(err.message, /config-patches/);
         return true;
       },

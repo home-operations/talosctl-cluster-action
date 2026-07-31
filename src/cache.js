@@ -40,6 +40,44 @@ export function bootAssetsKey({
   return `talos-boot-assets-${arch}-${talosVersion}-${fingerprint}`;
 }
 
+/**
+ * The path talosctl's downloadBootAssets would cache a URL at: the full URL with
+ * '/' and ':' flattened to '-', inside the cache directory it stats before
+ * downloading.
+ */
+export const assetCachePath = (url) =>
+  path.join(bootAssetsDir(), url.replaceAll("/", "-").replaceAll(":", "-"));
+
+/**
+ * Pre-download boot assets into talosctl's own cache, authenticating with HTTP
+ * Basic. The dev subcommand has no --image-factory-auth, and credentials embedded
+ * in the URL would ride in argv; fetching here keeps them in headers, and
+ * talosctl's cache check makes the URL a no-op download afterwards.
+ */
+export async function preseedBootAssets(urls, auth) {
+  fs.mkdirSync(bootAssetsDir(), { recursive: true });
+
+  for (const url of urls) {
+    const destination = assetCachePath(url);
+    if (fs.existsSync(destination)) continue;
+
+    core.info(`Fetching ${url} into the boot asset cache`);
+
+    const response = await fetch(url, {
+      headers: { authorization: `Basic ${Buffer.from(auth).toString("base64")}` },
+    });
+    if (!response.ok) {
+      throw new Error(`could not fetch ${url}: ${response.status} ${response.statusText}`);
+    }
+
+    // Written via a temp name so a failure part-way never leaves a file that
+    // talosctl's existence check would mistake for a complete download.
+    const partial = `${destination}.partial`;
+    fs.writeFileSync(partial, Buffer.from(await response.arrayBuffer()));
+    fs.renameSync(partial, destination);
+  }
+}
+
 /** Restore the boot asset directory; returns the hit key, or undefined on a miss. */
 export async function restoreBootAssets(key) {
   if (!cache.isFeatureAvailable()) {

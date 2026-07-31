@@ -13,7 +13,7 @@ import {
 } from "../src/schematic.js";
 import { parseCluster } from "../src/config.js";
 import { profileKernelArgs } from "../src/profile.js";
-import { buildArgs } from "../src/args.js";
+import { bootAsset } from "../src/factory.js";
 
 const envelope = "apiVersion: v1alpha1\nkind: TalosCluster\nmetadata:\n  name: dev\n";
 
@@ -88,20 +88,16 @@ describe("image factory url", () => {
     assert.equal(DEFAULT_FACTORY_URL, "https://factory.talos.dev/");
   });
 
-  it("omits the flag when the spec names no factory, leaving talosctl's default", () => {
-    assert.ok(!buildArgs({ metadata: { name: "x" }, spec: {} }).includes("--image-factory-url"));
-  });
-
-  it("passes a custom factory to talosctl", () => {
-    const cluster = {
-      metadata: { name: "x" },
-      spec: { qemu: { "image-factory": { url: "https://ci.internal/image-factory" } } },
-    };
-    const args = buildArgs(cluster);
-    assert.equal(
-      args[args.indexOf("--image-factory-url") + 1],
-      "https://ci.internal/image-factory",
-    );
+  // The factory URL is no longer a talosctl flag: the dev subcommand takes fully
+  // built asset URLs, so the custom factory shows up inside them instead.
+  it("feeds a custom factory into the built asset URLs", () => {
+    const asset = bootAsset({
+      factoryUrl: "https://ci.internal/image-factory",
+      schematicId: "abc",
+      talosVersion: "v1.13.7",
+      arch: "amd64",
+    });
+    assert.equal(asset.url, "https://ci.internal/image-factory/image/abc/v1.13.7/metal-amd64.iso");
   });
 
   it("keeps a base path when building its own endpoint", async () => {

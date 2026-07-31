@@ -9,26 +9,51 @@
   "definitions": {
     "patch": {
       "description": "An inline machine config patch, or \"@path\" to read one from a file relative to the config file.",
-      "oneOf": [{ "type": "object" }, { "type": "string", "pattern": "^@.+", "minLength": 2 }]
+      "oneOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "string",
+          "pattern": "^@.+",
+          "minLength": 2
+        }
+      ]
     },
     "cpus": {
       "description": "Share of host CPUs per node, as a fraction. Maps to --cpus-{controlplanes,workers}.",
       "oneOf": [
-        { "type": "number", "exclusiveMinimum": 0 },
-        { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?$" }
+        {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?$"
+        }
       ]
     },
     "memory": {
       "description": "Memory limit per node. A bare number is MiB, matching talosctl's default unit. Maps to --memory-{controlplanes,workers}.",
       "oneOf": [
-        { "type": "number", "exclusiveMinimum": 0 },
-        { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?\\s*([KMGT]i?B|B)?$" }
+        {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?\\s*([KMGT]i?B|B)?$"
+        }
       ]
     }
   },
   "properties": {
-    "apiVersion": { "const": "v1alpha1" },
-    "kind": { "const": "TalosCluster" },
+    "apiVersion": {
+      "const": "v1alpha1"
+    },
+    "kind": {
+      "const": "TalosCluster"
+    },
     "metadata": {
       "type": "object",
       "additionalProperties": false,
@@ -70,17 +95,28 @@
               "type": "integer",
               "minimum": 1
             },
-            "cpus": { "$ref": "#/definitions/cpus" },
-            "memory": { "$ref": "#/definitions/memory" }
+            "cpus": {
+              "$ref": "#/definitions/cpus"
+            },
+            "memory": {
+              "$ref": "#/definitions/memory"
+            }
           }
         },
         "workers": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "count": { "type": "integer", "minimum": 0 },
-            "cpus": { "$ref": "#/definitions/cpus" },
-            "memory": { "$ref": "#/definitions/memory" }
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cpus": {
+              "$ref": "#/definitions/cpus"
+            },
+            "memory": {
+              "$ref": "#/definitions/memory"
+            }
           }
         },
         "network": {
@@ -107,17 +143,23 @@
             "cluster": {
               "description": "Applied to every node. Maps to --config-patch.",
               "type": "array",
-              "items": { "$ref": "#/definitions/patch" }
+              "items": {
+                "$ref": "#/definitions/patch"
+              }
             },
             "controlplanes": {
               "description": "Applied to control plane nodes. Maps to --config-patch-controlplanes.",
               "type": "array",
-              "items": { "$ref": "#/definitions/patch" }
+              "items": {
+                "$ref": "#/definitions/patch"
+              }
             },
             "workers": {
               "description": "Applied to worker nodes. Maps to --config-patch-workers.",
               "type": "array",
-              "items": { "$ref": "#/definitions/patch" }
+              "items": {
+                "$ref": "#/definitions/patch"
+              }
             }
           }
         },
@@ -132,7 +174,7 @@
               "minLength": 1
             },
             "disks": {
-              "description": "Disks per node, as \"driver:size\" with optional \":tag=\" / \":serial=\" parameters. Maps to a single --disks flag. The first disk goes to every node; any after it are attached to workers only.",
+              "description": "Disks per node, as \"driver:size\" with optional \":tag=\" / \":serial=\" parameters. The first disk goes to every node, must be virtio, and carries no parameters; any after it are attached to workers only and must all share one size (per-disk drivers, tags, and serials are fine).",
               "type": "array",
               "minItems": 1,
               "items": {
@@ -143,8 +185,14 @@
             "schematic": {
               "description": "Image Factory schematic, inline or \"@path\". Registered with the factory at run time; the returned id is passed as --schematic-id. Mutually exclusive with schematic-id.",
               "oneOf": [
-                { "type": "object" },
-                { "type": "string", "pattern": "^@.+", "minLength": 2 }
+                {
+                  "type": "object"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^@.+",
+                  "minLength": 2
+                }
               ]
             },
             "schematic-id": {
@@ -171,7 +219,9 @@
               "description": "Boot presets. Maps to --presets. Exactly one of iso, iso-secureboot, pxe, or disk-image must be present. Adding maintenance leaves the nodes unconfigured in maintenance mode: the action then skips the kubeconfig fetch and exports neither KUBECONFIG nor TALOSCONFIG, handing over only the node addresses.",
               "type": "array",
               "minItems": 1,
-              "items": { "enum": ["iso", "iso-secureboot", "pxe", "disk-image", "maintenance"] }
+              "items": {
+                "enum": ["iso", "iso-secureboot", "pxe", "disk-image", "maintenance"]
+              }
             }
           }
         },
@@ -196,7 +246,10 @@
             "mounts": {
               "description": "Mounts to attach to each container, in `docker --mount` syntax. Maps to a repeated --mount.",
               "type": "array",
-              "items": { "type": "string", "minLength": 1 }
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
             }
           }
         }
