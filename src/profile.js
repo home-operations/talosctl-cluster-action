@@ -40,20 +40,20 @@ const KERNEL_ARGS = [
 // Borrowed from kind. A node's disk holds two full sets of Kubernetes images plus the
 // Talos installer; if kubelet's default thresholds trip partway through a run it
 // garbage-collects images and evicts pods, which reads as a flaky test rather than a
-// disk problem. Nothing here is reclaimed anyway, the VM is deleted.
+// disk problem. Nothing here is reclaimed anyway, the VM is deleted. Written as the
+// 1.14 KubeletConfig document: a 1.14-contract config generates that document, and
+// Talos rejects a bundle that also sets .machine.kubelet in the v1alpha1 sections.
 const KUBELET_GC = {
   name: "kubelet GC and eviction thresholds",
   patch: {
-    machine: {
-      kubelet: {
-        extraConfig: {
-          imageGCHighThresholdPercent: 100,
-          evictionHard: {
-            "nodefs.available": "0%",
-            "nodefs.inodesFree": "0%",
-            "imagefs.available": "0%",
-          },
-        },
+    apiVersion: "v1alpha1",
+    kind: "KubeletConfig",
+    config: {
+      imageGCHighThresholdPercent: 100,
+      evictionHard: {
+        "nodefs.available": "0%",
+        "nodefs.inodesFree": "0%",
+        "imagefs.available": "0%",
       },
     },
   },
@@ -68,13 +68,11 @@ const KUBELET_GC = {
 const IMAGE_PULLS = {
   name: "parallel image pulls",
   patch: {
-    machine: {
-      kubelet: {
-        extraConfig: {
-          serializeImagePulls: false,
-          maxParallelImagePulls: 3,
-        },
-      },
+    apiVersion: "v1alpha1",
+    kind: "KubeletConfig",
+    config: {
+      serializeImagePulls: false,
+      maxParallelImagePulls: 3,
     },
   },
 };
@@ -91,13 +89,20 @@ const TIME_SYNC = {
   patch: { machine: { time: { disabled: true } } },
 };
 
-// talosctl hard-codes EnableClusterDiscovery, and its qemu subcommand exposes no flag
-// to turn it off, so every throwaway cluster registers its nodes as affiliates with the
-// public discovery service at discovery.talos.dev. Nothing here needs it: the nodes sit
-// on a local bridge at addresses the provisioner assigned, and KubeSpan is off.
-const DISCOVERY = {
+// Nothing here needs the public discovery service: the nodes sit on a local bridge
+// at addresses the provisioner assigned, and KubeSpan is off. The qemu provider
+// turns it off at generation time (--with-cluster-discovery=false, so no
+// DiscoveryServiceConfig document is emitted at all); the docker subcommand has no
+// such flag, so there the profile deletes the generated document instead. Wanting
+// it back on means adding your own DiscoveryServiceConfig document.
+const DISCOVERY_DELETE = {
   name: "cluster discovery service off",
-  patch: { cluster: { discovery: { enabled: false } } },
+  patch: {
+    apiVersion: "v1alpha1",
+    kind: "DiscoveryServiceConfig",
+    name: "default",
+    $patch: "delete",
+  },
 };
 
 // Trades durability for I/O, which is the right trade for a cluster that is destroyed
@@ -109,15 +114,13 @@ const ETCD_FSYNC = {
 };
 
 // Talos logs every API request at Metadata level to /var/log/audit/kube. Nothing
-// reads it here.
+// reads it here. The 1.14 document form; its `configuration` merges by replacement.
 const AUDIT_POLICY = {
   name: "apiserver audit policy off",
   patch: {
-    cluster: {
-      apiServer: {
-        auditPolicy: { apiVersion: "audit.k8s.io/v1", kind: "Policy", rules: [{ level: "None" }] },
-      },
-    },
+    apiVersion: "v1alpha1",
+    kind: "KubeAuditPolicyConfig",
+    configuration: { apiVersion: "audit.k8s.io/v1", kind: "Policy", rules: [{ level: "None" }] },
   },
 };
 
@@ -131,14 +134,17 @@ export function profileKernelArgs(profile, provider = DEFAULT_PROVIDER) {
 
 /**
  * Patches the profile contributes, by role. Emitted before the caller's own patches
- * so that theirs win. The install image is not among them: the action always pins
- * it via --install-image, the same way `cluster create qemu` pins it itself.
+ * so that theirs win. The install image is not among them (the action always pins
+ * it via --install-image), and neither is discovery on the qemu provider (turned
+ * off at generation time via --with-cluster-discovery=false).
  */
-export function profilePatches(profile) {
+export function profilePatches(profile, provider = DEFAULT_PROVIDER) {
   if (profile !== "ephemeral") return emptyPatches();
 
+  const cluster = [KUBELET_GC, IMAGE_PULLS, TIME_SYNC];
+
   return {
-    cluster: [KUBELET_GC, IMAGE_PULLS, TIME_SYNC, DISCOVERY],
+    cluster: provider === "docker" ? [...cluster, DISCOVERY_DELETE] : cluster,
     controlplanes: [ETCD_FSYNC, AUDIT_POLICY],
     workers: [],
   };
@@ -148,11 +154,12 @@ export function profilePatches(profile) {
 export function describeProfile(profile, { provider = DEFAULT_PROVIDER } = {}) {
   if (profile !== "ephemeral") return [];
 
-  const { cluster, controlplanes, workers } = profilePatches(profile);
+  const { cluster, controlplanes, workers } = profilePatches(profile, provider);
   const args = profileKernelArgs(profile, provider);
 
   return [
     ...(args.length ? [`kernel args: ${args.join(" ")}`] : []),
     ...[...cluster, ...controlplanes, ...workers].map((entry) => entry.name),
+    ...(provider === "docker" ? [] : ["cluster discovery service off"]),
   ];
 }

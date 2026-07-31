@@ -98365,6 +98365,11 @@ function buildArgs(cluster, ctx = {}) {
     // applyDefaultSettings.
     push("--install-image", ctx.installImage);
 
+    // No DiscoveryServiceConfig document is generated at all, which is how 1.14
+    // configs turn the public discovery service off. A spec that wants it back
+    // adds its own document via config-patches.
+    args.push("--with-cluster-discovery=false");
+
     // Replicates the qemu subcommand's lifecycle: nodes boot to maintenance mode
     // and the config is applied over the API, never injected into the boot.
     // Under the maintenance preset nothing is applied and there is no cluster to
@@ -98894,12 +98899,11 @@ async function defaultTalosVersion(binary) {
   return parseVersionOutput(stdout);
 }
 
-// v1.12 split `cluster create` into `qemu` and `docker` subcommands, but the floor is
-// v1.13 because the action emits flags that landed after that split: v1.12 has no
-// --image-factory-auth, and its disk parser is a SplitN(":", 2) that cannot read the
-// :tag= / :serial= parameters this schema accepts. Gating on v1.12 would admit users
-// who then hit the bare cobra errors this check exists to prevent.
-const MINIMUM_TALOS_VERSION = "1.13.0";
+// This action targets Talos 1.14: the ephemeral profile is written as the typed
+// config documents (KubeletConfig, KubeAuditPolicyConfig) that 1.14-contract
+// configs generate, and a pre-1.14 node rejects those kinds as unknown. Repos on
+// older Talos should pin an older action release rather than upgrade.
+const MINIMUM_TALOS_VERSION = "1.14.0";
 
 const parseVersion = (tag) =>
   (tag ?? "")
@@ -98935,13 +98939,27 @@ async function assertUsableVersion(binary) {
 
   if (!meetsMinimum(version)) {
     throw new Error(
-      `talosctl ${version} is too old: this action needs at least v${MINIMUM_TALOS_VERSION}, ` +
-        "which is where `cluster create` gained the `qemu` and `docker` subcommands and the " +
-        "flag names used here.",
+      `talosctl ${version} is too old: this action targets Talos v${MINIMUM_TALOS_VERSION} and ` +
+        "newer, whose configs use the typed multi-documents the ephemeral profile is written " +
+        "as. Pin an older release of this action for older Talos.",
     );
   }
 
   return version;
+}
+
+/**
+ * The same floor for the Talos version the nodes will run: the profile's typed
+ * documents are unknown kinds to a pre-1.14 node, which rejects the whole config.
+ */
+function assertSupportedTargetVersion(talosVersion) {
+  if (!meetsMinimum(talosVersion)) {
+    throw new Error(
+      `spec.qemu.talos-version ${talosVersion} is below v${MINIMUM_TALOS_VERSION}: this action ` +
+        "targets Talos 1.14+, whose configs carry the typed documents the ephemeral profile " +
+        "emits. Pin an older release of this action for older Talos.",
+    );
+  }
 }
 
 /**
@@ -99074,20 +99092,20 @@ const KERNEL_ARGS = [
 // Borrowed from kind. A node's disk holds two full sets of Kubernetes images plus the
 // Talos installer; if kubelet's default thresholds trip partway through a run it
 // garbage-collects images and evicts pods, which reads as a flaky test rather than a
-// disk problem. Nothing here is reclaimed anyway, the VM is deleted.
+// disk problem. Nothing here is reclaimed anyway, the VM is deleted. Written as the
+// 1.14 KubeletConfig document: a 1.14-contract config generates that document, and
+// Talos rejects a bundle that also sets .machine.kubelet in the v1alpha1 sections.
 const KUBELET_GC = {
   name: "kubelet GC and eviction thresholds",
   patch: {
-    machine: {
-      kubelet: {
-        extraConfig: {
-          imageGCHighThresholdPercent: 100,
-          evictionHard: {
-            "nodefs.available": "0%",
-            "nodefs.inodesFree": "0%",
-            "imagefs.available": "0%",
-          },
-        },
+    apiVersion: "v1alpha1",
+    kind: "KubeletConfig",
+    config: {
+      imageGCHighThresholdPercent: 100,
+      evictionHard: {
+        "nodefs.available": "0%",
+        "nodefs.inodesFree": "0%",
+        "imagefs.available": "0%",
       },
     },
   },
@@ -99102,13 +99120,11 @@ const KUBELET_GC = {
 const IMAGE_PULLS = {
   name: "parallel image pulls",
   patch: {
-    machine: {
-      kubelet: {
-        extraConfig: {
-          serializeImagePulls: false,
-          maxParallelImagePulls: 3,
-        },
-      },
+    apiVersion: "v1alpha1",
+    kind: "KubeletConfig",
+    config: {
+      serializeImagePulls: false,
+      maxParallelImagePulls: 3,
     },
   },
 };
@@ -99125,13 +99141,20 @@ const TIME_SYNC = {
   patch: { machine: { time: { disabled: true } } },
 };
 
-// talosctl hard-codes EnableClusterDiscovery, and its qemu subcommand exposes no flag
-// to turn it off, so every throwaway cluster registers its nodes as affiliates with the
-// public discovery service at discovery.talos.dev. Nothing here needs it: the nodes sit
-// on a local bridge at addresses the provisioner assigned, and KubeSpan is off.
-const DISCOVERY = {
+// Nothing here needs the public discovery service: the nodes sit on a local bridge
+// at addresses the provisioner assigned, and KubeSpan is off. The qemu provider
+// turns it off at generation time (--with-cluster-discovery=false, so no
+// DiscoveryServiceConfig document is emitted at all); the docker subcommand has no
+// such flag, so there the profile deletes the generated document instead. Wanting
+// it back on means adding your own DiscoveryServiceConfig document.
+const DISCOVERY_DELETE = {
   name: "cluster discovery service off",
-  patch: { cluster: { discovery: { enabled: false } } },
+  patch: {
+    apiVersion: "v1alpha1",
+    kind: "DiscoveryServiceConfig",
+    name: "default",
+    $patch: "delete",
+  },
 };
 
 // Trades durability for I/O, which is the right trade for a cluster that is destroyed
@@ -99143,15 +99166,13 @@ const ETCD_FSYNC = {
 };
 
 // Talos logs every API request at Metadata level to /var/log/audit/kube. Nothing
-// reads it here.
+// reads it here. The 1.14 document form; its `configuration` merges by replacement.
 const AUDIT_POLICY = {
   name: "apiserver audit policy off",
   patch: {
-    cluster: {
-      apiServer: {
-        auditPolicy: { apiVersion: "audit.k8s.io/v1", kind: "Policy", rules: [{ level: "None" }] },
-      },
-    },
+    apiVersion: "v1alpha1",
+    kind: "KubeAuditPolicyConfig",
+    configuration: { apiVersion: "audit.k8s.io/v1", kind: "Policy", rules: [{ level: "None" }] },
   },
 };
 
@@ -99165,14 +99186,17 @@ function profileKernelArgs(profile, provider = DEFAULT_PROVIDER) {
 
 /**
  * Patches the profile contributes, by role. Emitted before the caller's own patches
- * so that theirs win. The install image is not among them: the action always pins
- * it via --install-image, the same way `cluster create qemu` pins it itself.
+ * so that theirs win. The install image is not among them (the action always pins
+ * it via --install-image), and neither is discovery on the qemu provider (turned
+ * off at generation time via --with-cluster-discovery=false).
  */
-function profilePatches(profile) {
+function profilePatches(profile, provider = DEFAULT_PROVIDER) {
   if (profile !== "ephemeral") return emptyPatches();
 
+  const cluster = [KUBELET_GC, IMAGE_PULLS, TIME_SYNC];
+
   return {
-    cluster: [KUBELET_GC, IMAGE_PULLS, TIME_SYNC, DISCOVERY],
+    cluster: provider === "docker" ? [...cluster, DISCOVERY_DELETE] : cluster,
     controlplanes: [ETCD_FSYNC, AUDIT_POLICY],
     workers: [],
   };
@@ -99182,12 +99206,13 @@ function profilePatches(profile) {
 function describeProfile(profile, { provider = DEFAULT_PROVIDER } = {}) {
   if (profile !== "ephemeral") return [];
 
-  const { cluster, controlplanes, workers } = profilePatches(profile);
+  const { cluster, controlplanes, workers } = profilePatches(profile, provider);
   const args = profileKernelArgs(profile, provider);
 
   return [
     ...(args.length ? [`kernel args: ${args.join(" ")}`] : []),
     ...[...cluster, ...controlplanes, ...workers].map((entry) => entry.name),
+    ...(provider === "docker" ? [] : ["cluster discovery service off"]),
   ];
 }
 
@@ -99264,12 +99289,16 @@ async function run() {
   // v-prefixed here, not just on the flag: this value also fills ${TALOS_VERSION} in
   // the profile's install-image pin, and the Factory publishes no unprefixed tag.
   const talosVersion = withV(qemu["talos-version"] ?? clientVersion);
+  // The version the nodes will run, not just the binary: a pre-1.14 node rejects
+  // the typed config documents the profile emits.
+  if (isQemu) assertSupportedTargetVersion(talosVersion);
+
   const vars = substitutions({ schematicId, cluster, talosVersion, gateway: addresses.gateway });
 
   // Profile first: talosctl applies patches in order with a deep merge, so the
   // caller's patches override the profile key by key and leave the rest standing.
   const patches = concatPatches(
-    resolveProfilePatches(profilePatches(profile), { vars }),
+    resolveProfilePatches(profilePatches(profile, provider), { vars }),
     resolvePatches(cluster, { baseDir, vars }),
   );
 

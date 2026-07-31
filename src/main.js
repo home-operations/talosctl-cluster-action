@@ -23,7 +23,7 @@ import {
 } from "./patches.js";
 import { registerSchematic, schematicDocument, toYaml, withKernelArgs } from "./schematic.js";
 import { waitForMaintenanceNodes } from "./maintenance.js";
-import { assertUsableVersion, resolveTalosctl } from "./talosctl.js";
+import { assertSupportedTargetVersion, assertUsableVersion, resolveTalosctl } from "./talosctl.js";
 import { assertDocker, assertKvm, assertNetworkAvailable, assertStateWritable } from "./host.js";
 import { describeProfile, profileKernelArgs, profilePatches, DEFAULT_PROFILE } from "./profile.js";
 
@@ -100,12 +100,16 @@ export async function run() {
   // v-prefixed here, not just on the flag: this value also fills ${TALOS_VERSION} in
   // the profile's install-image pin, and the Factory publishes no unprefixed tag.
   const talosVersion = withV(qemu["talos-version"] ?? clientVersion);
+  // The version the nodes will run, not just the binary: a pre-1.14 node rejects
+  // the typed config documents the profile emits.
+  if (isQemu) assertSupportedTargetVersion(talosVersion);
+
   const vars = substitutions({ schematicId, cluster, talosVersion, gateway: addresses.gateway });
 
   // Profile first: talosctl applies patches in order with a deep merge, so the
   // caller's patches override the profile key by key and leave the rest standing.
   const patches = concatPatches(
-    resolveProfilePatches(profilePatches(profile), { vars }),
+    resolveProfilePatches(profilePatches(profile, provider), { vars }),
     resolvePatches(cluster, { baseDir, vars }),
   );
 

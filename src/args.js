@@ -160,6 +160,11 @@ export function buildArgs(cluster, ctx = {}) {
     // applyDefaultSettings.
     push("--install-image", ctx.installImage);
 
+    // No DiscoveryServiceConfig document is generated at all, which is how 1.14
+    // configs turn the public discovery service off. A spec that wants it back
+    // adds its own document via config-patches.
+    args.push("--with-cluster-discovery=false");
+
     // Replicates the qemu subcommand's lifecycle: nodes boot to maintenance mode
     // and the config is applied over the API, never injected into the boot.
     // Under the maintenance preset nothing is applied and there is no cluster to

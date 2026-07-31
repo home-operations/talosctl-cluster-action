@@ -67,12 +67,11 @@ async function defaultTalosVersion(binary) {
   return parseVersionOutput(stdout);
 }
 
-// v1.12 split `cluster create` into `qemu` and `docker` subcommands, but the floor is
-// v1.13 because the action emits flags that landed after that split: v1.12 has no
-// --image-factory-auth, and its disk parser is a SplitN(":", 2) that cannot read the
-// :tag= / :serial= parameters this schema accepts. Gating on v1.12 would admit users
-// who then hit the bare cobra errors this check exists to prevent.
-export const MINIMUM_TALOS_VERSION = "1.13.0";
+// This action targets Talos 1.14: the ephemeral profile is written as the typed
+// config documents (KubeletConfig, KubeAuditPolicyConfig) that 1.14-contract
+// configs generate, and a pre-1.14 node rejects those kinds as unknown. Repos on
+// older Talos should pin an older action release rather than upgrade.
+export const MINIMUM_TALOS_VERSION = "1.14.0";
 
 const parseVersion = (tag) =>
   (tag ?? "")
@@ -108,11 +107,25 @@ export async function assertUsableVersion(binary) {
 
   if (!meetsMinimum(version)) {
     throw new Error(
-      `talosctl ${version} is too old: this action needs at least v${MINIMUM_TALOS_VERSION}, ` +
-        "which is where `cluster create` gained the `qemu` and `docker` subcommands and the " +
-        "flag names used here.",
+      `talosctl ${version} is too old: this action targets Talos v${MINIMUM_TALOS_VERSION} and ` +
+        "newer, whose configs use the typed multi-documents the ephemeral profile is written " +
+        "as. Pin an older release of this action for older Talos.",
     );
   }
 
   return version;
+}
+
+/**
+ * The same floor for the Talos version the nodes will run: the profile's typed
+ * documents are unknown kinds to a pre-1.14 node, which rejects the whole config.
+ */
+export function assertSupportedTargetVersion(talosVersion) {
+  if (!meetsMinimum(talosVersion)) {
+    throw new Error(
+      `spec.qemu.talos-version ${talosVersion} is below v${MINIMUM_TALOS_VERSION}: this action ` +
+        "targets Talos 1.14+, whose configs carry the typed documents the ephemeral profile " +
+        "emits. Pin an older release of this action for older Talos.",
+    );
+  }
 }

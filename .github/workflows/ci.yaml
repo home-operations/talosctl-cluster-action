@@ -24,7 +24,7 @@ permissions:
 
 env:
   # renovate: datasource=github-releases depName=siderolabs/talos
-  TALOS_VERSION: v1.13.7
+  TALOS_VERSION: v1.14.0-beta.1
 
 jobs:
   bundle-freshness:
@@ -64,9 +64,8 @@ jobs:
       ${{ github.event_name != 'push'
       && !(startsWith(github.head_ref, 'release-please--')
       && github.event.pull_request.head.repo.full_name == github.repository) }}
-    name: E2E (${{ matrix.name || matrix.example }})
+    name: E2E (${{ matrix.example }})
     runs-on: ubuntu-24.04
-    continue-on-error: ${{ matrix.experimental || false }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -102,23 +101,6 @@ jobs:
           - example: maintenance
             nodes: 1
             maintenance: true
-          # The next Talos release, before consumers can hit it. `cluster create
-          # dev` promises no flag stability between releases, so this leg pays that
-          # tax up front: the dev dialect and the next config contract are proven
-          # here weeks before the release ships. minimal.yaml pins no talos-version,
-          # so the action's talosctl-version fallback drives every Factory URL to
-          # this version too. A prerelease pin lets Renovate offer prereleases; once
-          # it converges on a final release, re-point it at the next alpha by hand.
-          - example: minimal
-            name: talosctl-next
-            nodes: 1
-            # renovate: datasource=github-releases depName=siderolabs/talos
-            talos-version: v1.14.0-beta.1
-            cache: true
-            # Non-blocking until #46 (profile patches vs 1.14 typed config
-            # documents) is fixed; the drift stays visible without gating merges
-            # on an upstream beta.
-            experimental: true
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -128,8 +110,6 @@ jobs:
       # Deliberately a plain binary on PATH rather than a version manager: the
       # action must not depend on how talosctl got there.
       - name: Install talosctl
-        env:
-          TALOS_VERSION: ${{ matrix.talos-version || env.TALOS_VERSION }}
         run: |
           curl -sfL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o talosctl
           sudo install -m 0755 talosctl /usr/local/bin/talosctl

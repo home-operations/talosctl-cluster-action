@@ -22,6 +22,7 @@ describe("buildArgs", () => {
       "dev",
       "--name",
       "dev",
+      "--with-cluster-discovery=false",
       "--skip-injecting-config",
       "--with-apply-config",
     ]);

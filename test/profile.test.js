@@ -49,10 +49,32 @@ describe("profile", () => {
 
   // Both are valid in a worker's cluster/machine section as well as a control plane's,
   // so they ride the all-node patch rather than being split per role.
-  it("turns off time sync and cluster discovery on every node", () => {
+  it("turns off time sync on every node", () => {
     const cluster = JSON.stringify(profilePatches("ephemeral").cluster);
     assert.match(cluster, /"time":\{"disabled":true\}/);
-    assert.match(cluster, /"discovery":\{"enabled":false\}/);
+  });
+
+  // On the qemu provider discovery is off at generation time, so no patch; the
+  // docker subcommand has no such flag, so the generated 1.14 document is deleted.
+  it("deletes the discovery document on docker only", () => {
+    const qemu = JSON.stringify(profilePatches("ephemeral").cluster);
+    assert.doesNotMatch(qemu, /DiscoveryServiceConfig/);
+
+    const docker = JSON.stringify(profilePatches("ephemeral", "docker").cluster);
+    assert.match(docker, /"kind":"DiscoveryServiceConfig"/);
+    assert.match(docker, /"\$patch":"delete"/);
+  });
+
+  // The 1.14 contract generates typed documents for these areas and rejects a
+  // bundle that also sets them in the v1alpha1 sections.
+  it("writes kubelet and audit settings as their 1.14 typed documents", () => {
+    const cluster = JSON.stringify(profilePatches("ephemeral").cluster);
+    assert.match(cluster, /"kind":"KubeletConfig"/);
+    assert.doesNotMatch(cluster, /machine.*kubelet/);
+
+    const cp = JSON.stringify(profilePatches("ephemeral").controlplanes);
+    assert.match(cp, /"kind":"KubeAuditPolicyConfig"/);
+    assert.doesNotMatch(cp, /apiServer/);
   });
 
   it("puts etcd and audit settings on control planes only", () => {
@@ -61,7 +83,7 @@ describe("profile", () => {
     const patches = profilePatches("ephemeral");
     const cp = JSON.stringify(patches.controlplanes);
     assert.match(cp, /unsafe-no-fsync/);
-    assert.match(cp, /auditPolicy/);
+    assert.match(cp, /KubeAuditPolicyConfig/);
     assert.doesNotMatch(JSON.stringify(patches.cluster), /unsafe-no-fsync/);
     assert.deepEqual(patches.workers, []);
   });

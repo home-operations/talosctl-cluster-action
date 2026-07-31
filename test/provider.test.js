@@ -133,32 +133,30 @@ describe("profile under docker", () => {
     assert.deepEqual(profileKernelArgs("ephemeral", "docker"), []);
     assert.ok(profileKernelArgs("ephemeral", "qemu").length > 0);
 
-    const patches = profilePatches("ephemeral", { provider: "docker", hasSchematic: false });
+    const patches = profilePatches("ephemeral", "docker");
     assert.match(JSON.stringify(patches.cluster), /imageGCHighThresholdPercent/);
     assert.match(JSON.stringify(patches.cluster), /serializeImagePulls/);
     assert.match(JSON.stringify(patches.controlplanes), /unsafe-no-fsync/);
-    // No schematic means nothing to pin an install image to.
     assert.doesNotMatch(JSON.stringify(patches.cluster), /install/);
   });
 });
 
-// v1.12 introduced the qemu/docker subcommands, but the floor is v1.13: the action
-// emits --image-factory-auth and accepts :tag=/:serial= disk parameters, neither of
-// which v1.12 understands. Gating on v1.12 would admit users straight into the bare
-// cobra errors this check exists to prevent.
+// The floor is v1.14: the profile is written as the typed config documents that
+// 1.14-contract configs generate, and a pre-1.14 node rejects those kinds. Repos on
+// older Talos pin an older action release instead of upgrading.
 describe("talosctl minimum version", () => {
   it("requires the release that supports every flag the action emits", () => {
-    assert.equal(MINIMUM_TALOS_VERSION, "1.13.0");
+    assert.equal(MINIMUM_TALOS_VERSION, "1.14.0");
   });
 
   it("rejects releases older than that, including the subcommand release itself", () => {
-    for (const v of ["v1.12.0", "1.12.9", "v1.11.0", "v1.9.3", "0.14.0"]) {
+    for (const v of ["v1.13.7", "1.13.0", "v1.12.9", "v1.9.3", "0.14.0"]) {
       assert.equal(meetsMinimum(v), false, v);
     }
   });
 
   it("accepts that release and newer", () => {
-    for (const v of ["v1.13.0", "1.13.6", "v1.14.0", "v2.0.0"]) {
+    for (const v of ["v1.14.0", "1.14.2", "v1.15.0", "v2.0.0"]) {
       assert.equal(meetsMinimum(v), true, v);
     }
   });
@@ -170,7 +168,7 @@ describe("talosctl minimum version", () => {
   });
 
   it("handles pre-release and build suffixes", () => {
-    assert.equal(meetsMinimum("v1.13.0-alpha.1"), true);
-    assert.equal(meetsMinimum("v1.12.0-beta.2"), false);
+    assert.equal(meetsMinimum("v1.14.0-beta.1"), true);
+    assert.equal(meetsMinimum("v1.13.0-beta.2"), false);
   });
 });

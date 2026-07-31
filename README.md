@@ -56,8 +56,11 @@ length limit that is not obvious until it bites), so it lives here once.
 | Boots in           | minutes                         | seconds                       |
 
 Use `qemu` when the test needs a real kernel, real disks, or a real upgrade; `docker`
-when it only needs a Kubernetes API to talk to. Both need `talosctl` **v1.13 or
-newer** on `PATH`.
+when it only needs a Kubernetes API to talk to. Both need `talosctl` **v1.14 or
+newer** on `PATH`, and the clusters run Talos 1.14+: the ephemeral profile is written
+as the typed config documents that 1.14 configs use, which older nodes reject as
+unknown. Repos on older Talos should pin an older release of this action rather than
+upgrade.
 
 The docker provider maps onto `talosctl cluster create docker`. The qemu provider is
 driven through **`talosctl cluster create dev`**: upstream froze the qemu
@@ -75,7 +78,7 @@ action update. Check the release notes before jumping a talosctl minor.
 The action provisions the cluster and nothing else: it does not install packages or
 touch the host's swap. That keeps it working on any distribution and keeps host
 mutation in your workflow, where you can see it. Both providers need `talosctl`
-**v1.13 or newer** on `PATH`.
+**v1.14 or newer** on `PATH`.
 
 ### qemu
 
@@ -83,7 +86,7 @@ mutation in your workflow, where you can see it. Both providers need `talosctl`
 - name: Install talosctl
   env:
     # renovate: datasource=github-releases depName=siderolabs/talos
-    TALOS_VERSION: v1.13.7
+    TALOS_VERSION: v1.14.0-beta.1
   run: |
     curl -sfL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o talosctl
     sudo install -m 0755 talosctl /usr/local/bin/talosctl
@@ -116,7 +119,7 @@ runners and the runner user is already in the `docker` group, so no install is n
 - name: Install talosctl
   env:
     # renovate: datasource=github-releases depName=siderolabs/talos
-    TALOS_VERSION: v1.13.7
+    TALOS_VERSION: v1.14.0-beta.1
   run: |
     curl -sfL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o talosctl
     sudo install -m 0755 talosctl /usr/local/bin/talosctl
@@ -229,18 +232,18 @@ A cluster that lives for one CI run wants a set of settings that a real cluster 
 not. `spec.profile` defaults to `ephemeral` and applies them, so a spec is only what
 makes your cluster different:
 
-| Setting                                                           | Why                                                         |
-| ----------------------------------------------------------------- | ----------------------------------------------------------- |
-| `talos.dashboard.disabled=1`                                      | The console dashboard redraws for nobody to watch.          |
-| `talos.auditd.disabled=1`                                         | Kernel audit events nothing reads.                          |
-| `mitigations=off`                                                 | Side-channel mitigations cost cycles in a throwaway guest.  |
-| `init_on_alloc=0`                                                 | Zeroing every allocation costs cycles in a throwaway guest. |
-| kubelet `imageGCHighThresholdPercent` + `evictionHard` at zero    | Stops image GC and pod eviction from reading as flakes.     |
-| kubelet `serializeImagePulls: false` (`maxParallelImagePulls: 3`) | Pulls images in parallel, the slowest part of a cold start. |
-| `machine.time.disabled`                                           | NTP sync gates etcd, the kubelet and trustd on every boot.  |
-| `cluster.discovery.enabled: false`                                | Nothing local needs the public discovery service.           |
-| etcd `unsafe-no-fsync`                                            | Durability for I/O, on a cluster about to be deleted.       |
-| apiserver `auditPolicy: None`                                     | Talos logs every request to disk by default.                |
+| Setting                                                         | Why                                                         |
+| --------------------------------------------------------------- | ----------------------------------------------------------- |
+| `talos.dashboard.disabled=1`                                    | The console dashboard redraws for nobody to watch.          |
+| `talos.auditd.disabled=1`                                       | Kernel audit events nothing reads.                          |
+| `mitigations=off`                                               | Side-channel mitigations cost cycles in a throwaway guest.  |
+| `init_on_alloc=0`                                               | Zeroing every allocation costs cycles in a throwaway guest. |
+| `KubeletConfig` GC + eviction thresholds at zero                | Stops image GC and pod eviction from reading as flakes.     |
+| `KubeletConfig` `serializeImagePulls: false` (3 parallel pulls) | Pulls images in parallel, the slowest part of a cold start. |
+| `machine.time.disabled`                                         | NTP sync gates etcd, the kubelet and trustd on every boot.  |
+| discovery service off                                           | Nothing local needs the public discovery service.           |
+| etcd `unsafe-no-fsync`                                          | Durability for I/O, on a cluster about to be deleted.       |
+| `KubeAuditPolicyConfig` rules: `None`                           | Talos logs every request to disk by default.                |
 
 `mitigations=off` does not cover page-table isolation, and nothing can make it. Talos
 bakes `pti=on` into every image, and since Linux 6.17 an explicit `pti=on` outranks
@@ -268,6 +271,15 @@ spec:
             extraArgs:
               unsafe-no-fsync: "false" # keep the rest of the profile
 ```
+
+The kubelet and audit-policy settings are the 1.14 **typed documents**
+(`KubeletConfig`, `KubeAuditPolicyConfig`) rather than v1alpha1 sections, because a
+1.14 config that sets the same area in both is rejected; overriding those means
+patching the same document kind. Patching `.machine.kubelet` or
+`.cluster.apiServer` yourself hits the same rejection. Discovery is not a patch at
+all: the qemu provider turns it off at generation time, and the docker provider
+deletes the generated `DiscoveryServiceConfig` document; wanting it back on means
+adding that document via config-patches.
 
 **The install image** is pinned by the action itself, not by the profile: it always
 passes `--install-image` pointing at the Factory installer for the schematic in play
