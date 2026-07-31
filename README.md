@@ -137,6 +137,27 @@ lives at `$HOME/.talos/clusters`. If the runner is already root, the action skip
 `sudo` entirely. The **docker provider never uses sudo**: its provisioner has no root
 check at all, it just needs a reachable daemon.
 
+### Caching boot assets
+
+Every qemu run starts by downloading boot media from the Image Factory. talosctl
+already keeps those downloads in `~/.talos/cache`, keyed by source URL, and checks
+there before downloading; `cache: true` carries that directory across runs through
+the GitHub Actions cache, so only the first run per combination touches the Factory:
+
+```yaml
+- uses: home-operations/talosctl-cluster-action@v1
+  with:
+    config: test/e2e/cluster.yaml
+    cache: true
+```
+
+The cache key covers everything that changes what talosctl downloads: Talos version,
+schematic, presets, factory URL, and architecture. A changed spec misses and
+downloads fresh; a hit cannot serve wrong bytes, because talosctl's own lookup is by
+full URL. Off by default because it spends the repository's cache quota, roughly one
+ISO per Talos version and schematic. qemu only: the docker provider pulls a
+container image, and no boot assets are involved.
+
 ## Config
 
 `metadata.name` is the cluster name. Every field under `spec` maps to exactly one
@@ -304,7 +325,7 @@ spec:
 ```
 
 Patches may reference `${SCHEMATIC_ID}`, `${TALOS_VERSION}`, `${KUBERNETES_VERSION}`,
-and `${CLUSTER_NAME}`. `SCHEMATIC_ID` is why this exists: `talosctl` never sets
+`${CLUSTER_NAME}`, and `${GATEWAY}`. `SCHEMATIC_ID` is why this exists: `talosctl` never sets
 `machine.install.image`, so nodes come up on the generic installer and lose the
 schematic's extensions on the first upgrade. Pinning it needs the schematic id, which
 is only known after this action registers the schematic:
@@ -316,6 +337,33 @@ spec:
       - machine:
           install:
             image: factory.talos.dev/installer/${SCHEMATIC_ID}:${TALOS_VERSION}
+```
+
+`GATEWAY` is the host's own address on the cluster network, the first in the CIDR,
+and the only address a patch can use to point nodes at something the runner serves.
+The classic case is a registry pull-through cache: kubelet image pulls dominate a
+cold bring-up, and a mirror on the host makes them cacheable between runs. The
+workflow runs the mirror, with its storage under `actions/cache`:
+
+```yaml
+- name: Run a registry.k8s.io pull-through cache
+  run: |
+    docker run -d -p 5001:5000 \
+      -e REGISTRY_PROXY_REMOTEURL=https://registry.k8s.io \
+      -v "$HOME/.registry-mirror:/var/lib/registry" registry:3
+```
+
+and the spec points the nodes at it:
+
+```yaml
+spec:
+  config-patches:
+    cluster:
+      - machine:
+          registries:
+            mirrors:
+              registry.k8s.io:
+                endpoints: ["http://${GATEWAY}:5001"]
 ```
 
 ### A different Image Factory
@@ -381,8 +429,10 @@ nodes answer on the insecure maintenance API, and your tooling takes it from the
 
 Three details worth knowing:
 
-- **Create returns as soon as the VMs launch**, since there is no configuration to
-  wait on. Give the maintenance API a moment to start answering, or poll it.
+- **The action waits for the maintenance API** before returning. `cluster create`
+  itself returns as soon as the VMs launch, since there is no configuration to wait
+  on, so the action polls until every node accepts a connection on port 50000; the
+  first `talosctl --insecure` a later step runs does not race the boot.
 - **Machine configs are still generated**, with the profile and any
   `spec.config-patches` folded in; they are written to `config-dir` but never
   applied, and the `talosconfig` output points at the matching client config. Apply
@@ -500,6 +550,7 @@ Three things worth knowing before you scale the matrix out:
 | `talosctl`   | PATH lookup           | Absolute path to `talosctl`. Only needed when PATH cannot reach it. |
 | `config-dir` | `$RUNNER_TEMP/<name>` | Where the kubeconfig, talosconfig, and machine configs are written. |
 | `cleanup`    | `true`                | Destroy the cluster in the post step.                               |
+| `cache`      | `false`               | Keep Image Factory boot assets in the GitHub Actions cache.         |
 
 ## Outputs
 

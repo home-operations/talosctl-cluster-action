@@ -4,6 +4,7 @@ import path from "node:path";
 import * as core from "@actions/core";
 import { exec } from "@actions/exec";
 
+import { bootAssetsDir, bootAssetsKey, restoreBootAssets, saveBootAssets } from "./cache.js";
 import { loadCluster, validateSocketPath } from "./config.js";
 import { buildArgs, hasMaintenancePreset, nodeAddresses, providerOf, withV } from "./args.js";
 import {
@@ -14,6 +15,7 @@ import {
   unresolved,
 } from "./patches.js";
 import { registerSchematic, schematicDocument, toYaml, withKernelArgs } from "./schematic.js";
+import { waitForMaintenanceNodes } from "./maintenance.js";
 import { assertUsableVersion, resolveTalosctl } from "./talosctl.js";
 import { assertDocker, assertKvm, assertNetworkAvailable, assertStateWritable } from "./host.js";
 import { describeProfile, profileKernelArgs, profilePatches, DEFAULT_PROFILE } from "./profile.js";
@@ -91,7 +93,7 @@ export async function run() {
   // v-prefixed here, not just on the flag: this value also fills ${TALOS_VERSION} in
   // the profile's install-image pin, and the Factory publishes no unprefixed tag.
   const talosVersion = withV(qemu["talos-version"] ?? clientVersion);
-  const vars = substitutions({ schematicId, cluster, talosVersion });
+  const vars = substitutions({ schematicId, cluster, talosVersion, gateway: addresses.gateway });
 
   // Profile first: talosctl applies patches in order with a deep merge, so the
   // caller's patches override the profile key by key and leave the rest standing.
@@ -114,6 +116,25 @@ export async function run() {
       );
     }
   }
+
+  // Restored before create so talosctl's own URL-keyed cache lookup finds the
+  // assets instead of downloading them. Only the qemu provisioner downloads boot
+  // media; under docker there is nothing to cache.
+  const cacheAssets = bool("cache") && isQemu;
+  if (bool("cache") && !isQemu) {
+    core.info(
+      "cache: true has no effect under the docker provider, which downloads no boot assets",
+    );
+  }
+  const assetsKey = cacheAssets
+    ? bootAssetsKey({
+        talosVersion,
+        schematicId,
+        presets: qemu.presets,
+        factoryUrl: qemu["image-factory"]?.url,
+      })
+    : undefined;
+  const restoredKey = cacheAssets ? await restoreBootAssets(assetsKey) : undefined;
 
   const configDir = path.resolve(
     // `||` not `??`: an empty RUNNER_TEMP would make path.join return a bare relative
@@ -144,11 +165,16 @@ export async function run() {
   // the working directory, so it runs in configDir rather than the checkout.
   if (elevate) {
     await exec("sudo", ["-E", talosctl, ...args], { cwd: configDir });
-    // Everything the provisioner wrote is owned by root; later steps are not.
-    await exec("sudo", ["chown", "-R", `${process.getuid()}:${process.getgid()}`, configDir]);
+    // Everything the provisioner wrote is owned by root; later steps are not. The
+    // boot asset cache is included so the runner user, and any cache step, can
+    // manage it after the run.
+    const rootOwned = [configDir, bootAssetsDir()].filter((dir) => fs.existsSync(dir));
+    await exec("sudo", ["chown", "-R", `${process.getuid()}:${process.getgid()}`, ...rootOwned]);
   } else {
     await exec(talosctl, args, { cwd: configDir });
   }
+
+  if (cacheAssets) await saveBootAssets(assetsKey, restoredKey);
 
   const endpoint = addresses.controlplanes[0];
 
@@ -167,6 +193,12 @@ export async function run() {
 
     core.exportVariable("TALOSCONFIG", talosconfig);
     core.exportVariable("KUBECONFIG", kubeconfig);
+  } else {
+    // With no machine config to wait on, create returns as soon as the VMs launch,
+    // and the caller's first `talosctl --insecure` would race the boot.
+    const nodes = [...addresses.controlplanes, ...addresses.workers];
+    core.info(`Waiting for the maintenance API to answer on ${nodes.join(", ")}`);
+    await waitForMaintenanceNodes(nodes);
   }
 
   core.setOutput("cluster-name", name);
@@ -183,7 +215,7 @@ export async function run() {
 
   core.info(
     maintenance
-      ? `Cluster '${name}' nodes booted in maintenance mode; first node at ${endpoint}`
+      ? `Cluster '${name}' nodes answering in maintenance mode; first node at ${endpoint}`
       : `Cluster '${name}' ready at ${endpoint}`,
   );
 }

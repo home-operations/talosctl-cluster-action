@@ -74,9 +74,12 @@ jobs:
       matrix:
         include:
           # Smallest thing that can boot: no schematic, no patches, all talosctl
-          # defaults. Proves the happy path with an almost empty spec.
+          # defaults. Proves the happy path with an almost empty spec. Also the
+          # boot-asset cache leg: the first run per Talos version saves, every
+          # later run restores instead of downloading from the Image Factory.
           - example: minimal
             nodes: 1
+            cache: true
           # Exercises the parts a spec actually uses in anger: a registered
           # schematic carrying its own kernel arg, per-role sizing, extra worker
           # disks, and patches that override a profile default.
@@ -143,6 +146,7 @@ jobs:
         uses: ./
         with:
           config: examples/${{ matrix.example }}.yaml
+          cache: ${{ matrix.cache || false }}
 
       - name: Verify the cluster came up
         if: ${{ !matrix.maintenance }}
@@ -181,10 +185,8 @@ jobs:
           fi
 
           node="${CONTROLPLANE_IPS%%,*}"
-          # Create returns as soon as the VMs launch, so the API needs a moment to
-          # start answering.
-          echo "waiting for the maintenance API on $node"
-          timeout 5m bash -c "until talosctl -n \"$node\" get links --insecure >/dev/null 2>&1; do sleep 5; done"
+          # The action waits for the maintenance API before returning, so a single
+          # immediate call must succeed; a retry loop here would hide a regression.
           talosctl -n "$node" get links --insecure
 
       - name: Verify the reported outputs

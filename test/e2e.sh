@@ -19,6 +19,7 @@ inputs=(
     "INPUT_CONFIG-DIR="
     "INPUT_TALOSCTL="
     "INPUT_CLEANUP=true"
+    "INPUT_CACHE=false"
     "RUNNER_TEMP=${workdir}"
     "GITHUB_STATE=${workdir}/state"
     "GITHUB_ENV=${workdir}/env"
@@ -62,13 +63,11 @@ cat "${workdir}/output"
 kubeconfig="$(value_of kubeconfig "${workdir}/output")"
 
 # An empty kubeconfig means the maintenance preset: no cluster formed, so verify the
-# nodes over the insecure maintenance API instead. Create returns as soon as the VMs
-# launch, so the API needs a moment to start answering.
+# nodes over the insecure maintenance API instead. The action waits for that API
+# before returning, so a single immediate call must succeed.
 if [[ -z "${kubeconfig}" ]]; then
     node="$(value_of controlplane-ips "${workdir}/output")"
     node="${node%%,*}"
-    echo "==> waiting for the maintenance API on ${node}"
-    timeout 5m bash -c "until talosctl -n '${node}' get links --insecure >/dev/null 2>&1; do sleep 5; done"
     talosctl -n "${node}" get links --insecure
 else
     KUBECONFIG="${kubeconfig}" kubectl wait --for=condition=Ready node --all --timeout=5m
