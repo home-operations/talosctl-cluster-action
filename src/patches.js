@@ -8,7 +8,7 @@ import YAML from "yaml";
  * that id is only known after this action registers the schematic. A workflow
  * cannot template it in beforehand.
  */
-export function substitutions({ schematicId, cluster, talosVersion }) {
+export function substitutions({ schematicId, cluster, talosVersion, gateway }) {
   const spec = cluster.spec ?? {};
   return {
     SCHEMATIC_ID: schematicId ?? "",
@@ -18,6 +18,11 @@ export function substitutions({ schematicId, cluster, talosVersion }) {
     TALOS_VERSION: talosVersion ?? "",
     KUBERNETES_VERSION: spec["kubernetes-version"] ?? "",
     CLUSTER_NAME: cluster.metadata.name,
+    // The one address on the cluster network that belongs to the host, so the only
+    // way a patch can point nodes at something the runner serves, such as a registry
+    // pull-through cache. Known before the network exists: the provisioner always
+    // puts the host on the first address of the CIDR.
+    GATEWAY: gateway ?? "",
   };
 }
 

@@ -33,6 +33,15 @@ inputs:
     description: Destroy the cluster in the post step.
     required: false
     default: "true"
+  cache:
+    description: >-
+      Keep Image Factory boot assets (~/.talos/cache) in the GitHub Actions cache,
+      keyed on the Talos version, schematic, presets, and factory URL, so only the
+      first run per combination downloads boot media. Off by default because it
+      spends the repository's cache quota. qemu only; the docker provider downloads
+      no boot assets.
+    required: false
+    default: "false"
 
 outputs:
   cluster-name:

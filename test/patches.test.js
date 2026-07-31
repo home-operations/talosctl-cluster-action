@@ -26,6 +26,7 @@ const vars = substitutions({
   schematicId: "deadbeef",
   cluster: cluster(),
   talosVersion: "v1.13.6",
+  gateway: "10.5.0.1",
 });
 
 describe("resolvePatch", () => {
@@ -72,6 +73,22 @@ describe("resolvePatch", () => {
       () => resolvePatch("@nope.yaml", { baseDir: "/tmp" }),
       /could not read config patch @nope\.yaml/,
     );
+  });
+
+  // GATEWAY is the only address a patch can use to reach something the runner
+  // serves, such as a registry pull-through cache.
+  it("substitutes the host gateway address", () => {
+    const patch = resolvePatch(
+      {
+        machine: {
+          registries: { mirrors: { "docker.io": { endpoints: ["http://${GATEWAY}:5000"] } } },
+        },
+      },
+      { vars },
+    );
+    assert.deepEqual(JSON.parse(patch).machine.registries.mirrors["docker.io"].endpoints, [
+      "http://10.5.0.1:5000",
+    ]);
   });
 
   it("leaves unknown variables alone so they can be reported", () => {

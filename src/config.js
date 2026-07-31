@@ -37,7 +37,7 @@ const UNSUPPORTED = {
   "spec.install-image":
     "Not exposed by `cluster create qemu`. Pin machine.install.image through spec.config-patches, using ${SCHEMATIC_ID} to match the schematic this action registers.",
   "spec.registry-mirror":
-    "Not exposed by `cluster create qemu`. Patch machine.registries.mirrors under spec.config-patches instead.",
+    "Not exposed by `cluster create qemu`. Patch machine.registries.mirrors under spec.config-patches instead, with ${GATEWAY} to reach a mirror the runner serves.",
   "spec.config-patches.all":
     "Patches applied to every node go under spec.config-patches.cluster, alongside controlplanes and workers.",
   "spec.controlplanes.disk": "Disks are cluster-wide, not per role. Use spec.qemu.disks.",
