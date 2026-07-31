@@ -106,11 +106,12 @@ jobs:
           # tax up front: the dev dialect and the next config contract are proven
           # here weeks before the release ships. minimal.yaml pins no talos-version,
           # so the action's talosctl-version fallback drives every Factory URL to
-          # this version too.
-          # renovate: datasource=github-releases depName=siderolabs/talos versioning=semver
+          # this version too. A prerelease pin lets Renovate offer prereleases; once
+          # it converges on a final release, re-point it at the next alpha by hand.
           - example: minimal
             name: talosctl-next
             nodes: 1
+            # renovate: datasource=github-releases depName=siderolabs/talos
             talos-version: v1.14.0-beta.1
             cache: true
     steps:
