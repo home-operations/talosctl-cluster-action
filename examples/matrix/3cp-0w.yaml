@@ -10,7 +10,7 @@ metadata:
   name: e2e-3cp-0w
 spec:
   qemu:
-    talos-version: v1.13.6
+    talos-version: v1.14.0-beta.1
   controlplanes:
     count: 3
   workers:
