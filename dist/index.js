@@ -90311,6 +90311,44 @@ function bootAssetsKey({
   return `talos-boot-assets-${arch}-${talosVersion}-${fingerprint}`;
 }
 
+/**
+ * The path talosctl's downloadBootAssets would cache a URL at: the full URL with
+ * '/' and ':' flattened to '-', inside the cache directory it stats before
+ * downloading.
+ */
+const assetCachePath = (url) =>
+  path$1.join(bootAssetsDir(), url.replaceAll("/", "-").replaceAll(":", "-"));
+
+/**
+ * Pre-download boot assets into talosctl's own cache, authenticating with HTTP
+ * Basic. The dev subcommand has no --image-factory-auth, and credentials embedded
+ * in the URL would ride in argv; fetching here keeps them in headers, and
+ * talosctl's cache check makes the URL a no-op download afterwards.
+ */
+async function preseedBootAssets(urls, auth) {
+  fs$1.mkdirSync(bootAssetsDir(), { recursive: true });
+
+  for (const url of urls) {
+    const destination = assetCachePath(url);
+    if (fs$1.existsSync(destination)) continue;
+
+    info(`Fetching ${url} into the boot asset cache`);
+
+    const response = await fetch(url, {
+      headers: { authorization: `Basic ${Buffer.from(auth).toString("base64")}` },
+    });
+    if (!response.ok) {
+      throw new Error(`could not fetch ${url}: ${response.status} ${response.statusText}`);
+    }
+
+    // Written via a temp name so a failure part-way never leaves a file that
+    // talosctl's existence check would mistake for a complete download.
+    const partial = `${destination}.partial`;
+    fs$1.writeFileSync(partial, Buffer.from(await response.arrayBuffer()));
+    fs$1.renameSync(partial, destination);
+  }
+}
+
 /** Restore the boot asset directory; returns the hit key, or undefined on a miss. */
 async function restoreBootAssets(key) {
   if (!isFeatureAvailable()) {
@@ -90343,6 +90381,97 @@ async function saveBootAssets(key, restoredKey) {
     // have won the race to save this key.
     warning(`boot asset cache save failed: ${err.message}`);
   }
+}
+
+/**
+ * Image Factory asset references for the dev backend.
+ *
+ * `cluster create dev` takes boot media as plain paths or URLs rather than a
+ * schematic id, so the action builds the same Factory URLs the qemu subcommand's
+ * presets would have (preset/*.go in talosctl), byte for byte: the schematic id
+ * (or the well-known empty one), the Talos version, and the metal platform's
+ * asset naming.
+ */
+
+// constants.ImageFactoryEmptySchematicID: what `cluster create qemu` substitutes
+// when no schematic is given, so a spec without one boots identical media.
+const EMPTY_SCHEMATIC_ID =
+  "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba";
+
+// Node arch to Talos arch. The provisioner targets the host's own architecture.
+const ARCHES = { x64: "amd64", arm64: "arm64" };
+const talosArch = (nodeArch = process.arch) => ARCHES[nodeArch] ?? "amd64";
+
+// A relative reference resolves against the base's *directory*, so a factory URL
+// with a path but no trailing slash would silently lose that path (same rule as
+// schematic registration).
+const join = (factoryUrl, ...segments) =>
+  new URL(segments.join("/"), factoryUrl.endsWith("/") ? factoryUrl : `${factoryUrl}/`).toString();
+
+/** The boot-method preset in play: the first non-maintenance entry, iso by default. */
+const bootMethodOf = (presets) =>
+  (presets ?? []).find((preset) => preset !== "maintenance") ?? "iso";
+
+/**
+ * The dev flag and Factory URL for the spec's boot method. Mirrors talosctl's
+ * iso/iso-secureboot/pxe/disk-image presets (metal platform asset paths).
+ */
+function bootAsset({
+  presets,
+  factoryUrl = DEFAULT_FACTORY_URL,
+  schematicId,
+  talosVersion,
+  arch = talosArch(),
+}) {
+  const id = schematicId ?? EMPTY_SCHEMATIC_ID;
+  const method = bootMethodOf(presets);
+
+  switch (method) {
+    case "iso":
+      return {
+        flag: "--iso-path",
+        url: join(factoryUrl, "image", id, talosVersion, `metal-${arch}.iso`),
+        secureboot: false,
+      };
+    case "iso-secureboot":
+      return {
+        flag: "--iso-path",
+        url: join(factoryUrl, "image", id, talosVersion, `metal-${arch}-secureboot.iso`),
+        secureboot: true,
+      };
+    case "disk-image":
+      return {
+        flag: "--disk-image-path",
+        url: join(factoryUrl, "image", id, talosVersion, `metal-${arch}.raw.zst`),
+        secureboot: false,
+      };
+    case "pxe":
+      return {
+        flag: "--ipxe-boot-script",
+        url: join(factoryUrl, "pxe", id, talosVersion, `metal-${arch}`),
+        secureboot: false,
+      };
+    default:
+      throw new Error(`unknown boot-method preset '${method}'`);
+  }
+}
+
+/**
+ * The installer image reference the stable subcommand would have pinned
+ * (applyDefaultSettings in preset.go). dev defaults to the generic installer,
+ * which would drop schematic extensions on the first `talosctl upgrade`, so it
+ * is always passed explicitly via --install-image.
+ */
+function installerImage({
+  factoryUrl = DEFAULT_FACTORY_URL,
+  schematicId,
+  talosVersion,
+  secureboot = false,
+}) {
+  const host = new URL(factoryUrl).host;
+  const name = secureboot ? "metal-installer-secureboot" : "metal-installer";
+
+  return `${host}/${name}/${schematicId ?? EMPTY_SCHEMATIC_ID}:${talosVersion}`;
 }
 
 var ajv = {exports: {}};
@@ -97974,7 +98103,7 @@ var properties = {
 						minLength: 1
 					},
 					disks: {
-						description: "Disks per node, as \"driver:size\" with optional \":tag=\" / \":serial=\" parameters. Maps to a single --disks flag. The first disk goes to every node; any after it are attached to workers only.",
+						description: "Disks per node, as \"driver:size\" with optional \":tag=\" / \":serial=\" parameters. The first disk goes to every node, must be virtio, and carries no parameters; any after it are attached to workers only and must all share one size (per-disk drivers, tags, and serials are fine).",
 						type: "array",
 						minItems: 1,
 						items: {
@@ -98101,10 +98230,84 @@ const providerOf = (cluster) => cluster.spec?.provider ?? DEFAULT_PROVIDER;
 const hasMaintenancePreset = (cluster) =>
   Boolean(cluster.spec?.qemu?.presets?.includes("maintenance"));
 
+// One disk entry: driver, a size with unit, then optional :tag= / :serial= params.
+const DISK_RE = /^([a-z0-9]+):([0-9]+(?:\.[0-9]+)?)\s*([KMGT]i?B|B)?((?::[a-z]+=[^:]+)*)$/;
+
+const UNIT_MB = {
+  B: 1 / (1024 * 1024),
+  KB: 1 / 1024,
+  KiB: 1 / 1024,
+  MB: 1,
+  MiB: 1,
+  GB: 1024,
+  GiB: 1024,
+  TB: 1024 * 1024,
+  TiB: 1024 * 1024,
+};
+
+/**
+ * Map spec.qemu.disks onto `cluster create dev`'s count-based disk flags.
+ *
+ * The dev subcommand kept the legacy disk interface: one virtio primary sized in
+ * MB, plus N worker-only extra disks that share a single size but carry per-disk
+ * drivers, tags, and serials. The list syntax stays expressible with two
+ * constraints, both rejected here with the reason rather than silently mangled:
+ * the primary must be virtio, and every extra disk must be the same size.
+ */
+function translateDisks(disks) {
+  const parse = (entry, position) => {
+    const match = DISK_RE.exec(entry);
+    if (!match) throw new Error(`spec.qemu.disks[${position}]: cannot parse '${entry}'`);
+
+    const [, driver, size, unit = "MiB", params] = match;
+    const mb = Math.round(Number(size) * UNIT_MB[unit]);
+    const tag = /:tag=([^:]+)/.exec(params)?.[1] ?? "";
+    const serial = /:serial=([^:]+)/.exec(params)?.[1] ?? "";
+
+    return { driver, mb, tag, serial };
+  };
+
+  const [primary, ...extras] = disks.map(parse);
+
+  if (primary.driver !== "virtio") {
+    throw new Error(
+      `spec.qemu.disks[0]: the primary disk must be virtio; '${primary.driver}' is only ` +
+        "available for the extra worker disks",
+    );
+  }
+  if (primary.tag || primary.serial) {
+    throw new Error("spec.qemu.disks[0]: tag= and serial= are only available on extra disks");
+  }
+
+  const sizes = new Set(extras.map((disk) => disk.mb));
+  if (sizes.size > 1) {
+    throw new Error(
+      "spec.qemu.disks: extra disks must all be the same size " +
+        `(got ${[...sizes].join("MB, ")}MB); talosctl's dev interface sizes them together`,
+    );
+  }
+
+  return {
+    disk: primary.mb,
+    extraDisks: extras.length,
+    extraDisksSize: extras[0]?.mb,
+    drivers: extras.map((disk) => disk.driver),
+    tags: extras.map((disk) => disk.tag),
+    serials: extras.map((disk) => disk.serial),
+  };
+}
+
 function buildArgs(cluster, ctx = {}) {
   const spec = cluster.spec ?? {};
   const provider = providerOf(cluster);
-  const args = ["cluster", "create", provider, "--name", cluster.metadata.name];
+
+  // The qemu provider is driven through `cluster create dev`: upstream froze the
+  // qemu subcommand's flag surface and points anyone needing the full set (boot
+  // media paths, install image, network shaping) at dev. The action pins the
+  // exact behavior the qemu subcommand had — same Factory media, same
+  // maintenance-boot + API-apply lifecycle — through explicit flags.
+  const args = ["cluster", "create", provider === "qemu" ? "dev" : provider];
+  args.push("--name", cluster.metadata.name);
 
   const push = (flag, value) => {
     if (value !== undefined && value !== null) args.push(flag, String(value));
@@ -98112,39 +98315,78 @@ function buildArgs(cluster, ctx = {}) {
 
   push("--kubernetes-version", spec["kubernetes-version"] && withoutV(spec["kubernetes-version"]));
 
-  // Shared, except --controlplanes: docker never registers it and always runs exactly
-  // one, so passing it would be an unknown-flag error rather than a no-op.
-  if (provider === "qemu") push("--controlplanes", spec.controlplanes?.count);
-  push("--cpus-controlplanes", spec.controlplanes?.cpus);
-  push("--memory-controlplanes", spec.controlplanes?.memory);
-
   push("--workers", spec.workers?.count);
-  push("--cpus-workers", spec.workers?.cpus);
-  push("--memory-workers", spec.workers?.memory);
-
-  // Same underlying option, different flag name per subcommand. --mtu is shared: it
-  // is registered in getCommonUserFacingFlags and merely MarkHidden, so it is absent
-  // from `--help` but accepted by both, and docker feeds it to the bridge as
-  // com.docker.network.driver.mtu.
-  push(provider === "docker" ? "--subnet" : "--cidr", spec.network?.cidr);
-  push("--mtu", spec.network?.mtu);
 
   if (provider === "qemu") {
     const qemu = spec.qemu ?? {};
 
-    push("--talos-version", qemu["talos-version"] && withV(qemu["talos-version"]));
+    // dev renamed the control-plane resource flags; the worker ones match.
+    push("--controlplanes", spec.controlplanes?.count);
+    push("--cpus", spec.controlplanes?.cpus);
+    push("--memory", spec.controlplanes?.memory);
+    push("--cpus-workers", spec.workers?.cpus);
+    push("--memory-workers", spec.workers?.memory);
 
-    // One comma-joined flag, not repeated flags: the Disks pflag.Value replaces its
-    // accumulated list on every Set, so `--disks a --disks b` silently keeps only b.
-    if (qemu.disks?.length) push("--disks", qemu.disks.join(","));
+    push("--cidr", spec.network?.cidr);
+    push("--mtu", spec.network?.mtu);
 
-    push("--schematic-id", ctx.schematicId);
-    push("--image-factory-url", qemu["image-factory"]?.url);
-    push("--image-factory-auth", qemu["image-factory"]?.auth);
+    if (qemu.disks?.length) {
+      const disks = translateDisks(qemu.disks);
+      push("--disk", disks.disk);
+      if (disks.extraDisks > 0) {
+        push("--extra-disks", disks.extraDisks);
+        push("--extra-disks-size", disks.extraDisksSize);
+        push("--extra-disks-drivers", disks.drivers.join(","));
+        if (disks.tags.some(Boolean)) push("--extra-disks-tags", disks.tags.join(","));
+        if (disks.serials.some(Boolean)) push("--extra-disks-serials", disks.serials.join(","));
+      }
+    }
 
-    if (qemu.presets?.length) push("--presets", qemu.presets.join(","));
+    // Always passed: dev defaults to "latest", and the boot asset URLs and the
+    // install image pin below already embed the resolved version.
+    push("--talos-version", ctx.talosVersion);
+
+    // The boot media the qemu subcommand's preset would have chosen, as an
+    // explicit Factory URL (see factory.js).
+    if (ctx.bootAsset) {
+      args.push(ctx.bootAsset.flag, ctx.bootAsset.url);
+      if (ctx.bootAsset.secureboot) {
+        // What the iso-secureboot preset sets (iso_secureboot_preset.go): TPM 2.0
+        // plus TPM-keyed state/ephemeral encryption. Needs swtpm on the runner.
+        args.push("--with-tpm2");
+        args.push("--encrypt-state");
+        args.push("--encrypt-ephemeral");
+        push("--disk-encryption-key-types", "tpm");
+      }
+    }
+
+    // dev defaults to the generic installer, which silently drops schematic
+    // extensions on the first upgrade; the qemu subcommand pins this itself in
+    // applyDefaultSettings.
+    push("--install-image", ctx.installImage);
+
+    // Replicates the qemu subcommand's lifecycle: nodes boot to maintenance mode
+    // and the config is applied over the API, never injected into the boot.
+    // Under the maintenance preset nothing is applied and there is no cluster to
+    // wait for.
+    args.push("--skip-injecting-config");
+    if (hasMaintenancePreset(cluster)) {
+      args.push("--wait=false");
+    } else {
+      args.push("--with-apply-config");
+    }
   } else {
     const docker = spec.docker ?? {};
+
+    push("--cpus-controlplanes", spec.controlplanes?.cpus);
+    push("--memory-controlplanes", spec.controlplanes?.memory);
+    push("--cpus-workers", spec.workers?.cpus);
+    push("--memory-workers", spec.workers?.memory);
+
+    push("--subnet", spec.network?.cidr);
+    // --mtu is registered in getCommonUserFacingFlags and merely MarkHidden;
+    // docker feeds it to the bridge as com.docker.network.driver.mtu.
+    push("--mtu", spec.network?.mtu);
 
     push("--image", docker.image);
     push("--host-ip", docker["host-ip"]);
@@ -98155,12 +98397,17 @@ function buildArgs(cluster, ctx = {}) {
 
   // Repeated flags, one per patch. These are StringArray rather than StringSlice
   // flags, so pflag does not split on commas and a JSON patch survives intact.
-  for (const patch of ctx.patches?.cluster ?? []) args.push("--config-patch", patch);
-  for (const patch of ctx.patches?.controlplanes ?? [])
-    args.push("--config-patch-controlplanes", patch);
-  for (const patch of ctx.patches?.workers ?? []) args.push("--config-patch-workers", patch);
+  // dev and docker also disagree on the role flag names.
+  const [cpFlag, workerFlag] =
+    provider === "qemu"
+      ? ["--config-patch-control-plane", "--config-patch-worker"]
+      : ["--config-patch-controlplanes", "--config-patch-workers"];
 
-  push("--talosconfig-destination", ctx.talosconfig);
+  for (const patch of ctx.patches?.cluster ?? []) args.push("--config-patch", patch);
+  for (const patch of ctx.patches?.controlplanes ?? []) args.push(cpFlag, patch);
+  for (const patch of ctx.patches?.workers ?? []) args.push(workerFlag, patch);
+
+  push(provider === "qemu" ? "--talosconfig" : "--talosconfig-destination", ctx.talosconfig);
 
   return args;
 }
@@ -98212,19 +98459,18 @@ const PROVIDER_KEYS = {
   docker: new Set(Object.keys(schema.properties.spec.properties.docker.properties)),
 };
 
-// Keys that read as obvious but that `cluster create qemu` does not expose. Without
-// these, `additionalProperties: false` reports a bare "unknown property" and leaves
-// the reader to discover the reason from talosctl's source.
+// Keys that read as obvious but that the spec does not expose. Without these,
+// `additionalProperties: false` reports a bare "unknown property" and leaves the
+// reader guessing at the reason.
 const UNSUPPORTED = {
   "spec.network.ipv6":
-    "IPv6 is only available on `talosctl cluster create dev`, which cannot use Image Factory schematics. For IPv6 inside the cluster, patch cluster.network.podSubnets/serviceSubnets under spec.config-patches instead.",
-  "spec.network.ipv4":
-    "IPv4 is always on for `cluster create qemu`; the toggle exists only on `cluster create dev`.",
-  "spec.network.nameservers": "Only available on `talosctl cluster create dev`.",
+    "Not exposed by this action yet. For IPv6 inside the cluster, patch cluster.network.podSubnets/serviceSubnets under spec.config-patches instead.",
+  "spec.network.ipv4": "IPv4 is always on.",
+  "spec.network.nameservers": "Not exposed by this action.",
   "spec.install-image":
-    "Not exposed by `cluster create qemu`. Pin machine.install.image through spec.config-patches, using ${SCHEMATIC_ID} to match the schematic this action registers.",
+    "The action pins machine.install.image to the Factory installer for the schematic in play itself; to override it anyway, patch machine.install.image through spec.config-patches.",
   "spec.registry-mirror":
-    "Not exposed by `cluster create qemu`. Patch machine.registries.mirrors under spec.config-patches instead, with ${GATEWAY} to reach a mirror the runner serves.",
+    "Patch machine.registries.mirrors under spec.config-patches instead, with ${GATEWAY} to reach a mirror the runner serves.",
   "spec.config-patches.all":
     "Patches applied to every node go under spec.config-patches.cluster, alongside controlplanes and workers.",
   "spec.controlplanes.disk": "Disks are cluster-wide, not per role. Use spec.qemu.disks.",
@@ -98328,6 +98574,16 @@ function parseCluster(source) {
 
   if (doc.spec?.qemu?.schematic && doc.spec?.qemu?.["schematic-id"]) {
     problems.push("spec.qemu.schematic and spec.qemu.schematic-id are mutually exclusive");
+  }
+
+  // The action maps the boot-method preset onto the dev subcommand's path flags
+  // itself, so this validation no longer happens inside talosctl.
+  const bootMethods = (doc.spec?.qemu?.presets ?? []).filter((preset) => preset !== "maintenance");
+  if (bootMethods.length > 1) {
+    problems.push(
+      `spec.qemu.presets names more than one boot method (${bootMethods.join(", ")}); ` +
+        "exactly one of iso, iso-secureboot, pxe, or disk-image may be present",
+    );
   }
 
   // docker never registers --controlplanes; it always runs exactly one.
@@ -98878,18 +99134,6 @@ const DISCOVERY = {
   patch: { cluster: { discovery: { enabled: false } } },
 };
 
-// talosctl never sets machine.install.image, so nodes come up on the generic
-// installer. On the first `talosctl upgrade` that silently drops every extension the
-// schematic baked in. Only meaningful when a schematic is in play.
-const INSTALL_IMAGE = {
-  name: "install image pinned to the schematic",
-  patch: {
-    machine: {
-      install: { image: "factory.talos.dev/installer/${SCHEMATIC_ID}:${TALOS_VERSION}" },
-    },
-  },
-};
-
 // Trades durability for I/O, which is the right trade for a cluster that is destroyed
 // at the end of the run. Talos only rejects the etcd args it manages for cluster
 // membership, so this one passes through.
@@ -98921,26 +99165,25 @@ function profileKernelArgs(profile, provider = DEFAULT_PROVIDER) {
 
 /**
  * Patches the profile contributes, by role. Emitted before the caller's own patches
- * so that theirs win.
+ * so that theirs win. The install image is not among them: the action always pins
+ * it via --install-image, the same way `cluster create qemu` pins it itself.
  */
-function profilePatches(profile, { hasSchematic = false } = {}) {
+function profilePatches(profile) {
   if (profile !== "ephemeral") return emptyPatches();
 
-  const cluster = [KUBELET_GC, IMAGE_PULLS, TIME_SYNC, DISCOVERY];
-
   return {
-    cluster: hasSchematic ? [...cluster, INSTALL_IMAGE] : cluster,
+    cluster: [KUBELET_GC, IMAGE_PULLS, TIME_SYNC, DISCOVERY],
     controlplanes: [ETCD_FSYNC, AUDIT_POLICY],
     workers: [],
   };
 }
 
 /** One line per thing the profile did, so a run never applies anything unannounced. */
-function describeProfile(profile, options = {}) {
+function describeProfile(profile, { provider = DEFAULT_PROVIDER } = {}) {
   if (profile !== "ephemeral") return [];
 
-  const { cluster, controlplanes, workers } = profilePatches(profile, options);
-  const args = profileKernelArgs(profile, options.provider);
+  const { cluster, controlplanes, workers } = profilePatches(profile);
+  const args = profileKernelArgs(profile, provider);
 
   return [
     ...(args.length ? [`kernel args: ${args.join(" ")}`] : []),
@@ -99025,14 +99268,32 @@ async function run() {
 
   // Profile first: talosctl applies patches in order with a deep merge, so the
   // caller's patches override the profile key by key and leave the rest standing.
-  const profileOptions = { hasSchematic: Boolean(schematicId), provider };
   const patches = concatPatches(
-    resolveProfilePatches(profilePatches(profile, profileOptions), { vars }),
+    resolveProfilePatches(profilePatches(profile), { vars }),
     resolvePatches(cluster, { baseDir, vars }),
   );
 
-  for (const line of describeProfile(profile, profileOptions)) {
+  for (const line of describeProfile(profile)) {
     info(`profile ${profile}: ${line}`);
+  }
+
+  // The dev subcommand takes boot media as URLs rather than a schematic id, so
+  // the action builds the same Factory references the qemu subcommand's presets
+  // would have (see factory.js), and pins the install image the way the qemu
+  // subcommand's applyDefaultSettings does.
+  const factoryUrl = qemu["image-factory"]?.url;
+  const asset = isQemu
+    ? bootAsset({ presets: qemu.presets, factoryUrl, schematicId, talosVersion })
+    : undefined;
+  const installImage = isQemu
+    ? installerImage({ factoryUrl, schematicId, talosVersion, secureboot: asset.secureboot })
+    : undefined;
+
+  // dev has no --image-factory-auth; a private factory's boot media is fetched by
+  // the action itself, with credentials in headers rather than argv, into the
+  // URL-keyed cache talosctl checks before downloading anything.
+  if (isQemu && factoryAuth) {
+    await preseedBootAssets([asset.url], factoryAuth);
   }
 
   for (const patch of [...patches.cluster, ...patches.controlplanes, ...patches.workers]) {
@@ -99074,7 +99335,13 @@ async function run() {
   const talosconfig = path$1.join(configDir, "talosconfig");
   const kubeconfig = path$1.join(configDir, "kubeconfig");
 
-  const args = buildArgs(cluster, { schematicId, patches, talosconfig });
+  const args = buildArgs(cluster, {
+    patches,
+    talosconfig,
+    talosVersion,
+    bootAsset: asset,
+    installImage,
+  });
 
   // The QEMU provisioner's first preflight check is `os.Geteuid() != 0`, so root is
   // not a nicety there, it is a hard gate. `-E` matters as much as the elevation:

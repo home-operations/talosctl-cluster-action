@@ -44,8 +44,7 @@ length limit that is not obvious until it bites), so it lives here once.
 
 ## Providers
 
-`spec.provider` picks the `talosctl cluster create` subcommand. They are not
-interchangeable, and the differences are talosctl's, not this action's:
+`spec.provider` picks how the nodes run. They are not interchangeable:
 
 |                    | `qemu` (default)                | `docker`                      |
 | ------------------ | ------------------------------- | ----------------------------- |
@@ -58,10 +57,18 @@ interchangeable, and the differences are talosctl's, not this action's:
 
 Use `qemu` when the test needs a real kernel, real disks, or a real upgrade; `docker`
 when it only needs a Kubernetes API to talk to. Both need `talosctl` **v1.13 or
-newer** on `PATH`. v1.12 introduced these subcommands, but the action also emits
-`--image-factory-auth` and accepts `:tag=` / `:serial=` disk parameters, neither of
-which v1.12 understands; it checks the version and says so rather than letting cobra
-report an unknown flag.
+newer** on `PATH`.
+
+The docker provider maps onto `talosctl cluster create docker`. The qemu provider is
+driven through **`talosctl cluster create dev`**: upstream froze the qemu
+subcommand's flag surface and points anyone needing the full set at `dev`, so the
+action pins the behavior the qemu subcommand had — the same Image Factory boot media
+(as explicit URLs), the same boot-to-maintenance-then-apply-over-the-API lifecycle,
+the same schematic-pinned install image — through explicit flags, and layers the
+extra capabilities only `dev` exposes on top over time. `dev` makes no
+interface-stability promise between talosctl releases; this action's e2e pins the
+tested version, and a talosctl release the action has not caught up with may need an
+action update. Check the release notes before jumping a talosctl minor.
 
 ## Runner setup
 
@@ -125,7 +132,7 @@ runners and the runner user is already in the `docker` group, so no install is n
 
 ### About sudo
 
-The action shells out to `sudo` for exactly one thing: `talosctl cluster create qemu`.
+The action shells out to `sudo` for exactly one thing: `talosctl cluster create dev`.
 That is not a choice. The QEMU provisioner's _first_ preflight check is
 `os.Geteuid() != 0`, and its own error recommends `sudo -E`:
 
@@ -164,45 +171,46 @@ container image, and no boot assets are involved.
 flag. A field the spec omits is not passed, so it keeps talosctl's own default rather
 than one this action invents and then has to track across Talos releases.
 
-Shared by both providers:
+Shared by both providers (the flag column shows the qemu provider's dev dialect;
+docker keeps its own names for a few of them):
 
-| Field                               | Flag                                   |
-| ----------------------------------- | -------------------------------------- |
-| `metadata.name`                     | `--name`                               |
-| `spec.provider`                     | selects the subcommand                 |
-| `spec.profile`                      | (see below)                            |
-| `spec.kubernetes-version`           | `--kubernetes-version`                 |
-| `spec.controlplanes.count`          | `--controlplanes` (qemu only)          |
-| `spec.controlplanes.cpus`           | `--cpus-controlplanes`                 |
-| `spec.controlplanes.memory`         | `--memory-controlplanes`               |
-| `spec.workers.count`                | `--workers`                            |
-| `spec.workers.cpus`                 | `--cpus-workers`                       |
-| `spec.workers.memory`               | `--memory-workers`                     |
-| `spec.network.cidr`                 | `--cidr` on qemu, `--subnet` on docker |
-| `spec.network.mtu`                  | `--mtu`                                |
-| `spec.config-patches.cluster`       | `--config-patch`                       |
-| `spec.config-patches.controlplanes` | `--config-patch-controlplanes`         |
-| `spec.config-patches.workers`       | `--config-patch-workers`               |
+| Field                               | Flag                                              |
+| ----------------------------------- | ------------------------------------------------- |
+| `metadata.name`                     | `--name`                                          |
+| `spec.provider`                     | selects the subcommand                            |
+| `spec.profile`                      | (see below)                                       |
+| `spec.kubernetes-version`           | `--kubernetes-version`                            |
+| `spec.controlplanes.count`          | `--controlplanes` (qemu only)                     |
+| `spec.controlplanes.cpus`           | `--cpus` (docker: `--cpus-controlplanes`)         |
+| `spec.controlplanes.memory`         | `--memory` (docker: `--memory-controlplanes`)     |
+| `spec.workers.count`                | `--workers`                                       |
+| `spec.workers.cpus`                 | `--cpus-workers`                                  |
+| `spec.workers.memory`               | `--memory-workers`                                |
+| `spec.network.cidr`                 | `--cidr` on qemu, `--subnet` on docker            |
+| `spec.network.mtu`                  | `--mtu`                                           |
+| `spec.config-patches.cluster`       | `--config-patch`                                  |
+| `spec.config-patches.controlplanes` | `--config-patch-control-plane` / `-controlplanes` |
+| `spec.config-patches.workers`       | `--config-patch-worker` / `-workers`              |
 
 Provider-specific, and an error if it does not match `spec.provider`:
 
-| Field                                   | Flag                   |
-| --------------------------------------- | ---------------------- |
-| `spec.qemu.talos-version`               | `--talos-version`      |
-| `spec.qemu.disks`                       | `--disks`              |
-| `spec.qemu.schematic` / `.schematic-id` | `--schematic-id`       |
-| `spec.qemu.image-factory.url`           | `--image-factory-url`  |
-| `spec.qemu.image-factory.auth`          | `--image-factory-auth` |
-| `spec.qemu.presets`                     | `--presets`            |
-| `spec.docker.image`                     | `--image`              |
-| `spec.docker.host-ip`                   | `--host-ip`            |
-| `spec.docker.exposed-ports`             | `--exposed-ports`      |
-| `spec.docker.mounts`                    | `--mount` (repeated)   |
+| Field                                   | Becomes                                                    |
+| --------------------------------------- | ---------------------------------------------------------- |
+| `spec.qemu.talos-version`               | `--talos-version`, and the version in every Factory URL    |
+| `spec.qemu.disks`                       | `--disk` + `--extra-disks*` (see Disks)                    |
+| `spec.qemu.schematic` / `.schematic-id` | the schematic in the boot media and install-image URLs     |
+| `spec.qemu.image-factory.url`           | the base of every Factory URL the action builds            |
+| `spec.qemu.image-factory.auth`          | an authenticated pre-download into talosctl's asset cache  |
+| `spec.qemu.presets`                     | the boot media flag (`--iso-path`, `--disk-image-path`, …) |
+| `spec.docker.image`                     | `--image`                                                  |
+| `spec.docker.host-ip`                   | `--host-ip`                                                |
+| `spec.docker.exposed-ports`             | `--exposed-ports`                                          |
+| `spec.docker.mounts`                    | `--mount` (repeated)                                       |
 
-`spec.network.cidr` is one field because talosctl's `--cidr` and `--subnet` set the
-same underlying option. `spec.controlplanes.count` is the awkward one: docker never
-exposes it and always runs exactly one, so setting anything else there is rejected
-rather than silently ignored.
+`spec.network.cidr` is one field because both subcommands set the same underlying
+option. `spec.controlplanes.count` is the awkward one: docker never exposes it and
+always runs exactly one, so setting anything else there is rejected rather than
+silently ignored.
 
 `spec` is optional: a document with only `metadata.name` boots a qemu cluster on every
 talosctl default.
@@ -233,7 +241,6 @@ makes your cluster different:
 | `cluster.discovery.enabled: false`                                | Nothing local needs the public discovery service.           |
 | etcd `unsafe-no-fsync`                                            | Durability for I/O, on a cluster about to be deleted.       |
 | apiserver `auditPolicy: None`                                     | Talos logs every request to disk by default.                |
-| `machine.install.image` pinned to the schematic                   | Only when a schematic is used; see below.                   |
 
 `mitigations=off` does not cover page-table isolation, and nothing can make it. Talos
 bakes `pti=on` into every image, and since Linux 6.17 an explicit `pti=on` outranks
@@ -243,10 +250,9 @@ a node missing either fails its `systemRequirements` boot phase.
 
 Every run logs exactly what it applied; nothing here happens silently.
 
-`profile: none` applies none of it. Under the **docker provider** the kernel args and
-the install image pin are skipped, because both ride in an Image Factory schematic and
-docker boots a prebuilt image instead; the kubelet, etcd, and audit settings still
-apply.
+`profile: none` applies none of it. Under the **docker provider** the kernel args are
+skipped, because they ride in an Image Factory schematic and docker boots a prebuilt
+image instead; the kubelet, etcd, and audit settings still apply.
 
 **Overriding one setting** does not mean giving up the rest. The profile's settings
 are ordinary config patches emitted _before_ yours, and talosctl applies patches in
@@ -263,13 +269,12 @@ spec:
               unsafe-no-fsync: "false" # keep the rest of the profile
 ```
 
-**The install image pin** is the one that is easy to miss. `talosctl` never sets
-`machine.install.image`, so nodes boot from your schematic but come up on the generic
-installer, and the first `talosctl upgrade` silently drops every extension the
-schematic baked in. Whenever a schematic is in play, the profile pins the install
-image to the matching Factory image. Because it needs a Talos version, and a spec need
-not name one, the action falls back to the version `talosctl` would have chosen for
-itself.
+**The install image** is pinned by the action itself, not by the profile: it always
+passes `--install-image` pointing at the Factory installer for the schematic in play
+(or the empty one), because the dev subcommand's default is the generic installer,
+which would silently drop every schematic extension on the first `talosctl upgrade`.
+Because the pin needs a Talos version, and a spec need not name one, the action falls
+back to the version `talosctl` would have chosen for itself.
 
 **Kernel args are the exception to the override rule.** They live in the Image Factory
 schematic rather than in a config patch, so no later patch can override them. They
@@ -305,6 +310,11 @@ spec:
       - virtio:10GiB # every node
       - virtio:20GiB # workers only
 ```
+
+Two constraints come from the dev subcommand's count-based disk flags, and violating
+either is a validation error rather than a silent reshaping: the **first disk must be
+virtio** (and carries no `tag=`/`serial=`), and the **extra disks must all be the same
+size**. Extras keep per-disk drivers, tags, and serials.
 
 ### Patches and schematics
 
@@ -384,13 +394,14 @@ spec:
             - siderolabs/drbd
 ```
 
-Two consumers, because there are two calls: the action registers the schematic over
-HTTP itself and then hands the same settings to `talosctl`, which fetches the boot
-media. A URL with a path is kept intact, so `/image-factory` above is registered at
-`/image-factory/schematics`. `auth` is sent as HTTP Basic on the action's own request
-and passed through as `--image-factory-auth`; it is registered as a secret, so the
-runner masks it in the command line the log echoes. Keep it in a GitHub secret rather
-than committing it, and note it needs talosctl v1.13 or newer.
+The action is the only consumer: it registers the schematic over HTTP, builds the
+boot media URLs against the same base, and with `auth` set it downloads the media
+itself — HTTP Basic in headers, never in a command line — into the URL-keyed cache
+`talosctl` checks before downloading anything. A URL with a path is kept intact, so
+`/image-factory` above is registered at `/image-factory/schematics`. The one
+host-shaped exception is the install image, which is an OCI reference and therefore
+uses the factory URL's host only. Keep `auth` in a GitHub secret rather than
+committing it.
 
 ### Maintenance mode
 
@@ -577,10 +588,11 @@ characters by the UNIX socket limit. A name carrying `github.run_id` overflows i
 QEMU's error names the socket rather than the name that caused it. The action checks
 this up front and tells you how many characters you have.
 
-**IPv6 is not available.** `talosctl cluster create qemu` has no `--ipv6` flag; it
-exists only on `cluster create dev`, which cannot use Image Factory schematics. For
-IPv6 inside the cluster, patch `cluster.network.podSubnets` / `serviceSubnets` under
-`spec.config-patches`. Setting `spec.network.ipv6` is a validation error that says so.
+**IPv6 is not exposed yet.** The dev subcommand the action now drives does have
+`--ipv6`, so this is a planned spec field rather than an upstream limitation. Until
+then, for IPv6 inside the cluster, patch `cluster.network.podSubnets` /
+`serviceSubnets` under `spec.config-patches`. Setting `spec.network.ipv6` is a
+validation error that says so.
 
 **One cluster per CIDR per host.** The provisioner puts the bridge on the first
 address of the CIDR, so two clusters sharing a CIDR share a bridge and its tap

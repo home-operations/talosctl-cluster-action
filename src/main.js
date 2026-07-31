@@ -4,7 +4,14 @@ import path from "node:path";
 import * as core from "@actions/core";
 import { exec } from "@actions/exec";
 
-import { bootAssetsDir, bootAssetsKey, restoreBootAssets, saveBootAssets } from "./cache.js";
+import {
+  bootAssetsDir,
+  bootAssetsKey,
+  preseedBootAssets,
+  restoreBootAssets,
+  saveBootAssets,
+} from "./cache.js";
+import { bootAsset, installerImage } from "./factory.js";
 import { loadCluster, validateSocketPath } from "./config.js";
 import { buildArgs, hasMaintenancePreset, nodeAddresses, providerOf, withV } from "./args.js";
 import {
@@ -97,14 +104,32 @@ export async function run() {
 
   // Profile first: talosctl applies patches in order with a deep merge, so the
   // caller's patches override the profile key by key and leave the rest standing.
-  const profileOptions = { hasSchematic: Boolean(schematicId), provider };
   const patches = concatPatches(
-    resolveProfilePatches(profilePatches(profile, profileOptions), { vars }),
+    resolveProfilePatches(profilePatches(profile), { vars }),
     resolvePatches(cluster, { baseDir, vars }),
   );
 
-  for (const line of describeProfile(profile, profileOptions)) {
+  for (const line of describeProfile(profile)) {
     core.info(`profile ${profile}: ${line}`);
+  }
+
+  // The dev subcommand takes boot media as URLs rather than a schematic id, so
+  // the action builds the same Factory references the qemu subcommand's presets
+  // would have (see factory.js), and pins the install image the way the qemu
+  // subcommand's applyDefaultSettings does.
+  const factoryUrl = qemu["image-factory"]?.url;
+  const asset = isQemu
+    ? bootAsset({ presets: qemu.presets, factoryUrl, schematicId, talosVersion })
+    : undefined;
+  const installImage = isQemu
+    ? installerImage({ factoryUrl, schematicId, talosVersion, secureboot: asset.secureboot })
+    : undefined;
+
+  // dev has no --image-factory-auth; a private factory's boot media is fetched by
+  // the action itself, with credentials in headers rather than argv, into the
+  // URL-keyed cache talosctl checks before downloading anything.
+  if (isQemu && factoryAuth) {
+    await preseedBootAssets([asset.url], factoryAuth);
   }
 
   for (const patch of [...patches.cluster, ...patches.controlplanes, ...patches.workers]) {
@@ -146,7 +171,13 @@ export async function run() {
   const talosconfig = path.join(configDir, "talosconfig");
   const kubeconfig = path.join(configDir, "kubeconfig");
 
-  const args = buildArgs(cluster, { schematicId, patches, talosconfig });
+  const args = buildArgs(cluster, {
+    patches,
+    talosconfig,
+    talosVersion,
+    bootAsset: asset,
+    installImage,
+  });
 
   // The QEMU provisioner's first preflight check is `os.Geteuid() != 0`, so root is
   // not a nicety there, it is a hard gate. `-E` matters as much as the elevation:

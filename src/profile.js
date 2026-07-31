@@ -100,18 +100,6 @@ const DISCOVERY = {
   patch: { cluster: { discovery: { enabled: false } } },
 };
 
-// talosctl never sets machine.install.image, so nodes come up on the generic
-// installer. On the first `talosctl upgrade` that silently drops every extension the
-// schematic baked in. Only meaningful when a schematic is in play.
-const INSTALL_IMAGE = {
-  name: "install image pinned to the schematic",
-  patch: {
-    machine: {
-      install: { image: "factory.talos.dev/installer/${SCHEMATIC_ID}:${TALOS_VERSION}" },
-    },
-  },
-};
-
 // Trades durability for I/O, which is the right trade for a cluster that is destroyed
 // at the end of the run. Talos only rejects the etcd args it manages for cluster
 // membership, so this one passes through.
@@ -143,26 +131,25 @@ export function profileKernelArgs(profile, provider = DEFAULT_PROVIDER) {
 
 /**
  * Patches the profile contributes, by role. Emitted before the caller's own patches
- * so that theirs win.
+ * so that theirs win. The install image is not among them: the action always pins
+ * it via --install-image, the same way `cluster create qemu` pins it itself.
  */
-export function profilePatches(profile, { hasSchematic = false } = {}) {
+export function profilePatches(profile) {
   if (profile !== "ephemeral") return emptyPatches();
 
-  const cluster = [KUBELET_GC, IMAGE_PULLS, TIME_SYNC, DISCOVERY];
-
   return {
-    cluster: hasSchematic ? [...cluster, INSTALL_IMAGE] : cluster,
+    cluster: [KUBELET_GC, IMAGE_PULLS, TIME_SYNC, DISCOVERY],
     controlplanes: [ETCD_FSYNC, AUDIT_POLICY],
     workers: [],
   };
 }
 
 /** One line per thing the profile did, so a run never applies anything unannounced. */
-export function describeProfile(profile, options = {}) {
+export function describeProfile(profile, { provider = DEFAULT_PROVIDER } = {}) {
   if (profile !== "ephemeral") return [];
 
-  const { cluster, controlplanes, workers } = profilePatches(profile, options);
-  const args = profileKernelArgs(profile, options.provider);
+  const { cluster, controlplanes, workers } = profilePatches(profile);
+  const args = profileKernelArgs(profile, provider);
 
   return [
     ...(args.length ? [`kernel args: ${args.join(" ")}`] : []),

@@ -17,10 +17,10 @@ const valueOf = (args, flag) => args[args.indexOf(flag) + 1];
 const envelope = "apiVersion: v1alpha1\nkind: TalosCluster\nmetadata:\n  name: dev\n";
 
 describe("provider selection", () => {
-  it("defaults to qemu", () => {
+  it("defaults to qemu, driven through the dev subcommand", () => {
     assert.equal(DEFAULT_PROVIDER, "qemu");
     assert.equal(providerOf(cluster({})), "qemu");
-    assert.equal(buildArgs(cluster({}))[2], "qemu");
+    assert.equal(buildArgs(cluster({}))[2], "dev");
   });
 
   it("targets the docker subcommand when asked", () => {
