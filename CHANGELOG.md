@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.1.6](https://github.com/home-operations/talosctl-cluster-action/compare/v0.1.5...v0.1.6) (2026-07-31)
+
+
+### Features
+
+* add boot-asset cache, ${GATEWAY} variable, and maintenance wait ([#42](https://github.com/home-operations/talosctl-cluster-action/issues/42)) ([f069a80](https://github.com/home-operations/talosctl-cluster-action/commit/f069a80e81b966bd94beb569b1f9578c4379c045))
+
+
+### Bug Fixes
+
+* **ci:** fail the merge gate on cancelled jobs ([#40](https://github.com/home-operations/talosctl-cluster-action/issues/40)) ([e22d654](https://github.com/home-operations/talosctl-cluster-action/commit/e22d654afadfb637b36e301cf84a5a54e939fc91))
+* **npm:** update dependency node to v24.18.1 ([#38](https://github.com/home-operations/talosctl-cluster-action/issues/38)) ([59daf2f](https://github.com/home-operations/talosctl-cluster-action/commit/59daf2f536e75868c35c6000b46bf07efe0ca705))
+
+
+### Continuous Integration
+
+* **github-action:** Update action actions/stale (v10.4.0 → v11.0.0) ([#41](https://github.com/home-operations/talosctl-cluster-action/issues/41)) ([497064a](https://github.com/home-operations/talosctl-cluster-action/commit/497064a13d6dc9346316fa986ceaf9c881cb81f7))
+
+
+### Miscellaneous Chores
+
+* **mise:** Update tool npm (12.0.1 → 12.0.2) ([#39](https://github.com/home-operations/talosctl-cluster-action/issues/39)) ([5c7ec1e](https://github.com/home-operations/talosctl-cluster-action/commit/5c7ec1e24ce0e217745fe311e8145077df362e2c))
+* **renovate:** group the Node toolchain and engines bumps ([#36](https://github.com/home-operations/talosctl-cluster-action/issues/36)) ([81086d4](https://github.com/home-operations/talosctl-cluster-action/commit/81086d4c738e5be97ad183e277471a6fa4f18b03))
+
 ## [0.1.5](https://github.com/home-operations/talosctl-cluster-action/compare/v0.1.4...v0.1.5) (2026-07-29)
 
 
