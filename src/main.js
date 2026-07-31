@@ -101,8 +101,14 @@ export async function run() {
   // the profile's install-image pin, and the Factory publishes no unprefixed tag.
   const talosVersion = withV(qemu["talos-version"] ?? clientVersion);
   // The version the nodes will run, not just the binary: a pre-1.14 node rejects
-  // the typed config documents the profile emits.
-  if (isQemu) assertSupportedTargetVersion(talosVersion);
+  // the typed config documents the profile emits. On docker that version is the
+  // container image tag, when it carries one.
+  if (isQemu) {
+    assertSupportedTargetVersion(talosVersion);
+  } else {
+    const imageTag = /:(v?\d+\.\d+\.\d+\S*)$/.exec(cluster.spec?.docker?.image ?? "")?.[1];
+    if (imageTag) assertSupportedTargetVersion(imageTag, "the spec.docker.image tag");
+  }
 
   const vars = substitutions({ schematicId, cluster, talosVersion, gateway: addresses.gateway });
 

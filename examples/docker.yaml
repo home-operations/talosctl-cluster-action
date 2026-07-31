@@ -22,7 +22,7 @@ spec:
 
   docker:
     # docker's equivalent of the qemu provider's talos-version.
-    image: ghcr.io/siderolabs/talos:v1.13.6
+    image: ghcr.io/siderolabs/talos:v1.14.0-beta.1
 
   # The profile still applies the parts that make sense here: the kubelet, etcd, and
   # audit settings. Its kernel args are skipped, because those ride in an Image

@@ -98951,13 +98951,16 @@ async function assertUsableVersion(binary) {
 /**
  * The same floor for the Talos version the nodes will run: the profile's typed
  * documents are unknown kinds to a pre-1.14 node, which rejects the whole config.
+ * On qemu that version is spec.qemu.talos-version; on docker it is the container
+ * image tag. Caught here as a clear error instead of ten minutes of handshake
+ * failures against a node that rejected its config.
  */
-function assertSupportedTargetVersion(talosVersion) {
+function assertSupportedTargetVersion(talosVersion, source = "spec.qemu.talos-version") {
   if (!meetsMinimum(talosVersion)) {
     throw new Error(
-      `spec.qemu.talos-version ${talosVersion} is below v${MINIMUM_TALOS_VERSION}: this action ` +
-        "targets Talos 1.14+, whose configs carry the typed documents the ephemeral profile " +
-        "emits. Pin an older release of this action for older Talos.",
+      `${source} ${talosVersion} is below v${MINIMUM_TALOS_VERSION}: this action targets ` +
+        "Talos 1.14+, whose configs carry the typed documents the ephemeral profile emits. " +
+        "Pin an older release of this action for older Talos.",
     );
   }
 }
@@ -99290,8 +99293,14 @@ async function run() {
   // the profile's install-image pin, and the Factory publishes no unprefixed tag.
   const talosVersion = withV(qemu["talos-version"] ?? clientVersion);
   // The version the nodes will run, not just the binary: a pre-1.14 node rejects
-  // the typed config documents the profile emits.
-  if (isQemu) assertSupportedTargetVersion(talosVersion);
+  // the typed config documents the profile emits. On docker that version is the
+  // container image tag, when it carries one.
+  if (isQemu) {
+    assertSupportedTargetVersion(talosVersion);
+  } else {
+    const imageTag = /:(v?\d+\.\d+\.\d+\S*)$/.exec(cluster.spec?.docker?.image ?? "")?.[1];
+    if (imageTag) assertSupportedTargetVersion(imageTag, "the spec.docker.image tag");
+  }
 
   const vars = substitutions({ schematicId, cluster, talosVersion, gateway: addresses.gateway });
 

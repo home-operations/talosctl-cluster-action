@@ -119,13 +119,16 @@ export async function assertUsableVersion(binary) {
 /**
  * The same floor for the Talos version the nodes will run: the profile's typed
  * documents are unknown kinds to a pre-1.14 node, which rejects the whole config.
+ * On qemu that version is spec.qemu.talos-version; on docker it is the container
+ * image tag. Caught here as a clear error instead of ten minutes of handshake
+ * failures against a node that rejected its config.
  */
-export function assertSupportedTargetVersion(talosVersion) {
+export function assertSupportedTargetVersion(talosVersion, source = "spec.qemu.talos-version") {
   if (!meetsMinimum(talosVersion)) {
     throw new Error(
-      `spec.qemu.talos-version ${talosVersion} is below v${MINIMUM_TALOS_VERSION}: this action ` +
-        "targets Talos 1.14+, whose configs carry the typed documents the ephemeral profile " +
-        "emits. Pin an older release of this action for older Talos.",
+      `${source} ${talosVersion} is below v${MINIMUM_TALOS_VERSION}: this action targets ` +
+        "Talos 1.14+, whose configs carry the typed documents the ephemeral profile emits. " +
+        "Pin an older release of this action for older Talos.",
     );
   }
 }
