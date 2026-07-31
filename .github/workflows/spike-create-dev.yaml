@@ -1,0 +1,389 @@
+---
+# Spike: can `talosctl cluster create dev` replace `cluster create qemu` as this
+# action's backend, and what does it do to time-to-ready? Lives only on this
+# spike/ branch; never merged. Four legs:
+#
+#   control          today's action (cluster create qemu, ephemeral profile)
+#   dev-kernel       create dev booting Factory kernel/initramfs URLs, profile
+#                    kernel args via --extra-boot-kernel-args, no schematic
+#                    registration; asserts the args and disks actually landed
+#   dev-maintenance  create dev --skip-injecting-config as the maintenance-preset
+#                    equivalent
+#   dev-image-cache  dev-kernel plus a pre-built Talos image cache served on the
+#                    gateway, to measure the bootstrap image-pull win
+#
+# Every cluster is 1 controlplane + 1 worker with a 6GiB primary disk and a 5GiB
+# extra worker disk, so the legs are comparable. Each boot leg runs a cold create
+# (Factory downloads included) and a warm one (assets in ~/.talos/cache), with the
+# cold cluster destroyed in between. Timings are read from the API afterwards.
+name: Spike Create Dev
+
+on:
+  push:
+    branches:
+      - spike/**
+
+permissions:
+  contents: read
+
+env:
+  # renovate: datasource=github-releases depName=siderolabs/talos
+  TALOS_VERSION: v1.13.7
+  # constants.ImageFactoryEmptySchematicID: what `cluster create qemu` uses when
+  # no schematic is given, so the dev legs boot byte-identical media.
+  EMPTY_SCHEMATIC: 376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba
+  # The ephemeral profile's kernel args, including the negated-arg ordering hack
+  # the provisioner supports natively (WithDeleteNegatedArgs).
+  PROFILE_KERNEL_ARGS: >-
+    talos.dashboard.disabled=1 talos.auditd.disabled=1 mitigations=off
+    -init_on_alloc init_on_alloc=0
+
+jobs:
+  control:
+    name: Spike (control, qemu subcommand)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install talosctl
+        run: |
+          curl -sfL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o talosctl
+          sudo install -m 0755 talosctl /usr/local/bin/talosctl
+
+      - name: Install QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
+
+      - name: Enable swap
+        run: |
+          sudo fallocate -l 8G /mnt/e2e-swapfile
+          sudo chmod 600 /mnt/e2e-swapfile
+          sudo mkswap /mnt/e2e-swapfile
+          sudo swapon /mnt/e2e-swapfile
+
+      - name: Write specs
+        run: |
+          for phase in cold warm; do
+            [[ "$phase" == cold ]] && cidr="10.5.0.0/24" || cidr="10.6.0.0/24"
+            cat > "spike-${phase}.yaml" <<EOF
+          apiVersion: v1alpha1
+          kind: TalosCluster
+          metadata:
+            name: spike-${phase}
+          spec:
+            controlplanes:
+              count: 1
+            workers:
+              count: 1
+            network:
+              cidr: ${cidr}
+            qemu:
+              talos-version: ${TALOS_VERSION}
+              disks: [virtio:6GiB, virtio:5GiB]
+          EOF
+          done
+
+      - name: Cold create
+        id: cold
+        uses: ./
+        with:
+          config: spike-cold.yaml
+
+      - name: Cold ready
+        env:
+          KUBECONFIG_COLD: ${{ steps.cold.outputs.kubeconfig }}
+        run: KUBECONFIG="$KUBECONFIG_COLD" kubectl wait --for=condition=Ready node --all --timeout=5m
+
+      - name: Destroy cold cluster
+        run: sudo -E talosctl cluster destroy --name spike-cold --force
+
+      - name: Warm create
+        id: warm
+        uses: ./
+        with:
+          config: spike-warm.yaml
+
+      - name: Warm ready
+        env:
+          KUBECONFIG_WARM: ${{ steps.warm.outputs.kubeconfig }}
+        run: KUBECONFIG="$KUBECONFIG_WARM" kubectl wait --for=condition=Ready node --all --timeout=5m
+
+  dev-kernel:
+    name: Spike (dev, Factory kernel URLs)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install talosctl
+        run: |
+          curl -sfL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o talosctl
+          sudo install -m 0755 talosctl /usr/local/bin/talosctl
+
+      - name: Install QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
+
+      - name: Enable swap
+        run: |
+          sudo fallocate -l 8G /mnt/e2e-swapfile
+          sudo chmod 600 /mnt/e2e-swapfile
+          sudo mkswap /mnt/e2e-swapfile
+          sudo swapon /mnt/e2e-swapfile
+
+      # The ephemeral profile's patches, minus what dev covers with flags
+      # (--with-cluster-discovery=false) or --extra-boot-kernel-args.
+      - name: Write profile patches
+        run: |
+          cat > patch-all.yaml <<'EOF'
+          machine:
+            time:
+              disabled: true
+            kubelet:
+              extraConfig:
+                imageGCHighThresholdPercent: 100
+                evictionHard:
+                  nodefs.available: "0%"
+                  nodefs.inodesFree: "0%"
+                  imagefs.available: "0%"
+                serializeImagePulls: false
+                maxParallelImagePulls: 3
+          EOF
+          cat > patch-cp.yaml <<'EOF'
+          cluster:
+            etcd:
+              extraArgs:
+                unsafe-no-fsync: "true"
+            apiServer:
+              auditPolicy:
+                apiVersion: audit.k8s.io/v1
+                kind: Policy
+                rules:
+                  - level: None
+          EOF
+
+      - name: Cold create
+        run: |
+          sudo -E talosctl cluster create dev \
+            --name spike-cold --cidr 10.5.0.0/24 \
+            --controlplanes 1 --workers 1 \
+            --disk 6144 --extra-disks 1 --extra-disks-size 5120 \
+            --talos-version "${TALOS_VERSION}" \
+            --vmlinuz-path "https://factory.talos.dev/image/${EMPTY_SCHEMATIC}/${TALOS_VERSION}/kernel-amd64" \
+            --initrd-path "https://factory.talos.dev/image/${EMPTY_SCHEMATIC}/${TALOS_VERSION}/initramfs-amd64.xz" \
+            --extra-boot-kernel-args "${PROFILE_KERNEL_ARGS}" \
+            --with-cluster-discovery=false \
+            --config-patch @patch-all.yaml \
+            --config-patch-control-plane @patch-cp.yaml \
+            --talosconfig "${RUNNER_TEMP}/tc-cold"
+
+      - name: Cold ready
+        run: |
+          talosctl --talosconfig "${RUNNER_TEMP}/tc-cold" kubeconfig "${RUNNER_TEMP}/kc-cold" --nodes 10.5.0.2 --force
+          KUBECONFIG="${RUNNER_TEMP}/kc-cold" kubectl wait --for=condition=Ready node --all --timeout=5m
+
+      # The migration-feasibility assertions: profile kernel args reached the
+      # cmdline (including the negated init_on_alloc override), and the legacy
+      # disk flags produced the extra worker disk spec.qemu.disks would map to.
+      - name: Verify kernel args and disks
+        run: |
+          cmdline=$(talosctl --talosconfig "${RUNNER_TEMP}/tc-cold" -n 10.5.0.2 read /proc/cmdline)
+          echo "$cmdline"
+          grep -q "mitigations=off" <<<"$cmdline"
+          grep -q "init_on_alloc=0" <<<"$cmdline"
+          grep -q "talos.dashboard.disabled=1" <<<"$cmdline"
+          if grep -q "init_on_alloc=1" <<<"$cmdline"; then
+            echo "::error::baked-in init_on_alloc=1 survived the negation"
+            exit 1
+          fi
+          talosctl --talosconfig "${RUNNER_TEMP}/tc-cold" -n 10.5.0.3 get disks | tee disks.txt
+          grep -q vdb disks.txt
+
+      - name: Destroy cold cluster
+        run: sudo -E talosctl cluster destroy --name spike-cold --force
+
+      - name: Report cached assets
+        run: ls -lh ~/.talos/cache/
+
+      - name: Warm create
+        run: |
+          sudo -E talosctl cluster create dev \
+            --name spike-warm --cidr 10.6.0.0/24 \
+            --controlplanes 1 --workers 1 \
+            --disk 6144 --extra-disks 1 --extra-disks-size 5120 \
+            --talos-version "${TALOS_VERSION}" \
+            --vmlinuz-path "https://factory.talos.dev/image/${EMPTY_SCHEMATIC}/${TALOS_VERSION}/kernel-amd64" \
+            --initrd-path "https://factory.talos.dev/image/${EMPTY_SCHEMATIC}/${TALOS_VERSION}/initramfs-amd64.xz" \
+            --extra-boot-kernel-args "${PROFILE_KERNEL_ARGS}" \
+            --with-cluster-discovery=false \
+            --config-patch @patch-all.yaml \
+            --config-patch-control-plane @patch-cp.yaml \
+            --talosconfig "${RUNNER_TEMP}/tc-warm"
+
+      - name: Warm ready
+        run: |
+          talosctl --talosconfig "${RUNNER_TEMP}/tc-warm" kubeconfig "${RUNNER_TEMP}/kc-warm" --nodes 10.6.0.2 --force
+          KUBECONFIG="${RUNNER_TEMP}/kc-warm" kubectl wait --for=condition=Ready node --all --timeout=5m
+
+  dev-maintenance:
+    name: Spike (dev, maintenance equivalent)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install talosctl
+        run: |
+          curl -sfL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o talosctl
+          sudo install -m 0755 talosctl /usr/local/bin/talosctl
+
+      - name: Install QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
+
+      - name: Enable swap
+        run: |
+          sudo fallocate -l 8G /mnt/e2e-swapfile
+          sudo chmod 600 /mnt/e2e-swapfile
+          sudo mkswap /mnt/e2e-swapfile
+          sudo swapon /mnt/e2e-swapfile
+
+      # --skip-injecting-config leaves the nodes unconfigured; --wait=false because
+      # no cluster ever forms to be healthy. This is the maintenance preset's
+      # equivalent on the dev interface.
+      - name: Create unconfigured nodes
+        run: |
+          sudo -E talosctl cluster create dev \
+            --name spike-maint --cidr 10.5.0.0/24 \
+            --controlplanes 1 --workers 0 \
+            --disk 6144 \
+            --talos-version "${TALOS_VERSION}" \
+            --vmlinuz-path "https://factory.talos.dev/image/${EMPTY_SCHEMATIC}/${TALOS_VERSION}/kernel-amd64" \
+            --initrd-path "https://factory.talos.dev/image/${EMPTY_SCHEMATIC}/${TALOS_VERSION}/initramfs-amd64.xz" \
+            --skip-injecting-config --with-apply-config=false --wait=false \
+            --talosconfig "${RUNNER_TEMP}/tc-maint"
+
+      - name: Maintenance API answers
+        run: |
+          timeout 5m bash -c 'until talosctl -n 10.5.0.2 get links --insecure >/dev/null 2>&1; do sleep 5; done'
+          talosctl -n 10.5.0.2 get links --insecure
+
+  dev-image-cache:
+    name: Spike (dev, image cache)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install talosctl
+        run: |
+          curl -sfL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o talosctl
+          sudo install -m 0755 talosctl /usr/local/bin/talosctl
+
+      - name: Install QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf
+
+      - name: Enable swap
+        run: |
+          sudo fallocate -l 8G /mnt/e2e-swapfile
+          sudo chmod 600 /mnt/e2e-swapfile
+          sudo mkswap /mnt/e2e-swapfile
+          sudo swapon /mnt/e2e-swapfile
+
+      - name: Write profile patches
+        run: |
+          cat > patch-all.yaml <<'EOF'
+          machine:
+            time:
+              disabled: true
+            kubelet:
+              extraConfig:
+                imageGCHighThresholdPercent: 100
+                evictionHard:
+                  nodefs.available: "0%"
+                  nodefs.inodesFree: "0%"
+                  imagefs.available: "0%"
+                serializeImagePulls: false
+                maxParallelImagePulls: 3
+          EOF
+          cat > patch-cp.yaml <<'EOF'
+          cluster:
+            etcd:
+              extraArgs:
+                unsafe-no-fsync: "true"
+            apiServer:
+              auditPolicy:
+                apiVersion: audit.k8s.io/v1
+                kind: Policy
+                rules:
+                  - level: None
+          EOF
+
+      # The across-runs cacheable part: pull every default Talos/Kubernetes image
+      # into a flat OCI layout. Timed separately from the create.
+      - name: Cache create
+        run: |
+          talosctl images default | tee images.txt
+          talosctl images cache-create --images=- --image-cache-path "${RUNNER_TEMP}/image-cache" --layout=flat < images.txt
+          du -sh "${RUNNER_TEMP}/image-cache"
+
+      # Writes image-cache-patch.yaml (mirror + CA trust config for the nodes)
+      # into the working directory, keyed to the advertised gateway address.
+      - name: Cache certs and patch
+        run: |
+          talosctl images cache-cert-gen \
+            --tls-ca-file "${RUNNER_TEMP}/image-cache-ca.crt" \
+            --tls-cert-file "${RUNNER_TEMP}/image-cache-tls.crt" \
+            --tls-key-file "${RUNNER_TEMP}/image-cache-tls.key" \
+            --advertised-address 10.5.0.1
+          cat image-cache-patch.yaml
+
+      - name: Cold create with image cache
+        run: |
+          sudo -E talosctl cluster create dev \
+            --name spike-cache --cidr 10.5.0.0/24 \
+            --controlplanes 1 --workers 1 \
+            --disk 6144 --extra-disks 1 --extra-disks-size 5120 \
+            --talos-version "${TALOS_VERSION}" \
+            --vmlinuz-path "https://factory.talos.dev/image/${EMPTY_SCHEMATIC}/${TALOS_VERSION}/kernel-amd64" \
+            --initrd-path "https://factory.talos.dev/image/${EMPTY_SCHEMATIC}/${TALOS_VERSION}/initramfs-amd64.xz" \
+            --extra-boot-kernel-args "${PROFILE_KERNEL_ARGS}" \
+            --with-cluster-discovery=false \
+            --config-patch @patch-all.yaml \
+            --config-patch @image-cache-patch.yaml \
+            --config-patch-control-plane @patch-cp.yaml \
+            --registry-mirror "docker.io=https://10.5.0.1:5000" \
+            --registry-mirror "registry.k8s.io=https://10.5.0.1:5000" \
+            --registry-mirror "gcr.io=https://10.5.0.1:5000" \
+            --registry-mirror "ghcr.io=https://10.5.0.1:5000" \
+            --image-cache-path "${RUNNER_TEMP}/image-cache" \
+            --image-cache-tls-cert-file "${RUNNER_TEMP}/image-cache-tls.crt" \
+            --image-cache-tls-key-file "${RUNNER_TEMP}/image-cache-tls.key" \
+            --talosconfig "${RUNNER_TEMP}/tc-cache"
+
+      - name: Cold ready
+        run: |
+          talosctl --talosconfig "${RUNNER_TEMP}/tc-cache" kubeconfig "${RUNNER_TEMP}/kc-cache" --nodes 10.5.0.2 --force
+          KUBECONFIG="${RUNNER_TEMP}/kc-cache" kubectl wait --for=condition=Ready node --all --timeout=5m
+
+      - name: Cache server log
+        if: always()
+        run: sudo cat ~/.talos/clusters/spike-cache/image-cache.log || true
