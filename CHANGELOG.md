@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/home-operations/talosctl-cluster-action/compare/v0.2.0...v0.2.1) (2026-07-31)
+
+
+### Bug Fixes
+
+* keep node disks sparse on the dev backend ([#48](https://github.com/home-operations/talosctl-cluster-action/issues/48)) ([3137558](https://github.com/home-operations/talosctl-cluster-action/commit/31375588e3dc517dcb2088f325d04f79792eaa92))
+
 ## [0.2.0](https://github.com/home-operations/talosctl-cluster-action/compare/v0.1.6...v0.2.0) (2026-07-31)
 
 
