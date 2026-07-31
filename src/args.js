@@ -160,6 +160,13 @@ export function buildArgs(cluster, ctx = {}) {
     // applyDefaultSettings.
     push("--install-image", ctx.installImage);
 
+    // The dev subcommand registers --disk-preallocate with a literal default of
+    // true, unlike the qemu subcommand, which kept the option's false default and
+    // created sparse disks. Preallocation quietly multiplies a spec's nominal disk
+    // sizes into real bytes and fills a CI runner's disk before the first node
+    // boots; sparse is both the parity behavior and the only one that fits.
+    args.push("--disk-preallocate=false");
+
     // No DiscoveryServiceConfig document is generated at all, which is how 1.14
     // configs turn the public discovery service off. A spec that wants it back
     // adds its own document via config-patches.

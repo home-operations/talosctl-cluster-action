@@ -328,6 +328,13 @@ either is a validation error rather than a silent reshaping: the **first disk mu
 virtio** (and carries no `tag=`/`serial=`), and the **extra disks must all be the same
 size**. Extras keep per-disk drivers, tags, and serials.
 
+Disks are always **sparse**: the dev subcommand defaults to preallocating them, which
+turns a spec's nominal sizes into real bytes and fills a CI runner's disk before the
+first node boots, so the action pins the qemu subcommand's old sparse behavior. And
+when a spec names no disks at all, talosctl's default is now a single 6GiB disk per
+node — the previous subcommand defaulted to 10GiB plus a 6GiB extra on workers, so a
+test that relied on that implicit second disk must declare it.
+
 ### Patches and schematics
 
 Both take an inline object or an `"@path"` string, resolved relative to the config
