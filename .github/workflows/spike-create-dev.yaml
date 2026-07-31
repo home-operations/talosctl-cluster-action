@@ -147,6 +147,9 @@ jobs:
           cat > patch-all.yaml <<'EOF'
           machine:
             install:
+              # Generated configs default grubUseUKICmdline to true on current
+              # contracts, and extraKernelArgs is rejected alongside it.
+              grubUseUKICmdline: false
               extraKernelArgs:
                 - talos.dashboard.disabled=1
                 - talos.auditd.disabled=1
@@ -326,6 +329,9 @@ jobs:
           cat > patch-all.yaml <<'EOF'
           machine:
             install:
+              # Generated configs default grubUseUKICmdline to true on current
+              # contracts, and extraKernelArgs is rejected alongside it.
+              grubUseUKICmdline: false
               extraKernelArgs:
                 - talos.dashboard.disabled=1
                 - talos.auditd.disabled=1
