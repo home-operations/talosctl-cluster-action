@@ -185,6 +185,7 @@ jobs:
             --config-patch @patch-all.yaml \
             --config-patch-control-plane @patch-cp.yaml \
             --talosconfig "${RUNNER_TEMP}/tc-cold"
+          sudo chown "$(id -u):$(id -g)" "${RUNNER_TEMP}/tc-cold"
 
       - name: Cold ready
         run: |
@@ -228,6 +229,7 @@ jobs:
             --config-patch @patch-all.yaml \
             --config-patch-control-plane @patch-cp.yaml \
             --talosconfig "${RUNNER_TEMP}/tc-warm"
+          sudo chown "$(id -u):$(id -g)" "${RUNNER_TEMP}/tc-warm"
 
       - name: Warm ready
         run: |
@@ -378,6 +380,7 @@ jobs:
             --image-cache-tls-cert-file "${RUNNER_TEMP}/image-cache-tls.crt" \
             --image-cache-tls-key-file "${RUNNER_TEMP}/image-cache-tls.key" \
             --talosconfig "${RUNNER_TEMP}/tc-cache"
+          sudo chown "$(id -u):$(id -g)" "${RUNNER_TEMP}/tc-cache"
 
       - name: Cold ready
         run: |
