@@ -146,6 +146,12 @@ jobs:
         run: |
           cat > patch-all.yaml <<'EOF'
           machine:
+            install:
+              extraKernelArgs:
+                - talos.dashboard.disabled=1
+                - talos.auditd.disabled=1
+                - mitigations=off
+                - init_on_alloc=0
             time:
               disabled: true
             kubelet:
@@ -200,10 +206,10 @@ jobs:
           cmdline=$(talosctl --talosconfig "${RUNNER_TEMP}/tc-cold" -n 10.5.0.2 read /proc/cmdline)
           echo "$cmdline"
           grep -q "mitigations=off" <<<"$cmdline"
-          grep -q "init_on_alloc=0" <<<"$cmdline"
           grep -q "talos.dashboard.disabled=1" <<<"$cmdline"
-          if grep -q "init_on_alloc=1" <<<"$cmdline"; then
-            echo "::error::baked-in init_on_alloc=1 survived the negation"
+          last=$(grep -o "init_on_alloc=[01]" <<<"$cmdline" | tail -1)
+          if [[ "$last" != "init_on_alloc=0" ]]; then
+            echo "::error::init_on_alloc=0 did not outrank the baked-in default (last: ${last})"
             exit 1
           fi
           talosctl --talosconfig "${RUNNER_TEMP}/tc-cold" -n 10.5.0.3 get disks | tee disks.txt
@@ -314,6 +320,12 @@ jobs:
         run: |
           cat > patch-all.yaml <<'EOF'
           machine:
+            install:
+              extraKernelArgs:
+                - talos.dashboard.disabled=1
+                - talos.auditd.disabled=1
+                - mitigations=off
+                - init_on_alloc=0
             time:
               disabled: true
             kubelet:
