@@ -242,6 +242,11 @@ jobs:
           talosctl --talosconfig "${RUNNER_TEMP}/tc-warm" kubeconfig "${RUNNER_TEMP}/kc-warm" --nodes 10.6.0.2 --force
           KUBECONFIG="${RUNNER_TEMP}/kc-warm" kubectl wait --for=condition=Ready node --all --timeout=5m
 
+      - name: Node console logs
+        if: failure()
+        run: |
+          sudo find ~/.talos/clusters -name '*.log' -exec sh -c 'echo "==> $1"; tail -n 200 "$1"' _ {} \;
+
   dev-maintenance:
     name: Spike (dev, maintenance equivalent)
     runs-on: ubuntu-24.04
@@ -402,3 +407,8 @@ jobs:
       - name: Cache server log
         if: always()
         run: sudo cat ~/.talos/clusters/spike-cache/image-cache.log || true
+
+      - name: Node console logs
+        if: failure()
+        run: |
+          sudo find ~/.talos/clusters -name '*.log' -exec sh -c 'echo "==> $1"; tail -n 200 "$1"' _ {} \;
