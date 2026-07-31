@@ -206,6 +206,10 @@ jobs:
       # disk flags produced the extra worker disk spec.qemu.disks would map to.
       - name: Verify kernel args and disks
         run: |
+          echo "==> live machine config install section"
+          talosctl --talosconfig "${RUNNER_TEMP}/tc-cold" -n 10.5.0.2 get mc v1alpha1 -o yaml | grep -A 12 "install:" | head -20
+          echo "==> installer output from first boot"
+          sudo grep -aiE "installer|grub|uki" ~/.talos/clusters/spike-cold/spike-cold-controlplane-1.log | head -40
           cmdline=$(talosctl --talosconfig "${RUNNER_TEMP}/tc-cold" -n 10.5.0.2 read /proc/cmdline)
           echo "$cmdline"
           grep -q "mitigations=off" <<<"$cmdline"
