@@ -1,8 +1,5 @@
 ---
-rules:
-  # The e2e job runs the action from the checkout under test (`uses: ./`), which
-  # is the only way to exercise it before release. The reviewed code and the code
-  # being run are the same commit.
-  unpinned-uses:
-    ignore:
-      - ci.yaml
+# No suppressions needed: the e2e job's `uses: $/` self-repository reference
+# resolves to this repo at the running commit, which zizmor treats as local
+# rather than unpinned.
+rules: {}
