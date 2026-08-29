@@ -11,7 +11,7 @@ actionlint = "1.7.12"
 # testing on a newer major would let a feature the runner lacks pass CI and fail in
 # the field. Bump the minor freely; bump the major only when GitHub ships a runtime
 # to match, and change `using:` in the same commit.
-node = "24.19.0"
+node = "24.20.0"
 npm = "12.0.2"
 lefthook = "2.1.11"
 oxfmt = "0.65.0"
