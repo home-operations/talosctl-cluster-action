@@ -84,12 +84,7 @@ mutation in your workflow, where you can see it. Both providers need `talosctl`
 
 ```yaml
 - name: Install talosctl
-  env:
-    # renovate: datasource=github-releases depName=siderolabs/talos
-    TALOS_VERSION: v1.14.0
-  run: |
-    curl -sfL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o talosctl
-    sudo install -m 0755 talosctl /usr/local/bin/talosctl
+  run: curl -sL https://talos.dev/install | sh
 
 - name: Install QEMU
   run: |
@@ -117,12 +112,7 @@ runners and the runner user is already in the `docker` group, so no install is n
 
 ```yaml
 - name: Install talosctl
-  env:
-    # renovate: datasource=github-releases depName=siderolabs/talos
-    TALOS_VERSION: v1.14.0
-  run: |
-    curl -sfL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o talosctl
-    sudo install -m 0755 talosctl /usr/local/bin/talosctl
+  run: curl -sL https://talos.dev/install | sh
 
 # The nodes are containers on the runner's kernel, so flannel runs against host modules
 # it cannot load itself. Without br_netfilter its `bridge-nf-call-iptables` probe fails,
