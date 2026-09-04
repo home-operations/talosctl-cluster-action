@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/home-operations/talosctl-cluster-action/compare/v0.2.2...v0.2.3) (2026-09-04)
+
+
+### Miscellaneous Chores
+
+* **mise:** update tool oxfmt (0.65.0 → 0.66.0) ([#80](https://github.com/home-operations/talosctl-cluster-action/issues/80)) ([fd8dc89](https://github.com/home-operations/talosctl-cluster-action/commit/fd8dc8962ab1b02931e370d7b4b0de6ea5bac3e6))
+
 ## [0.2.2](https://github.com/home-operations/talosctl-cluster-action/compare/v0.2.1...v0.2.2) (2026-09-03)
 
 
