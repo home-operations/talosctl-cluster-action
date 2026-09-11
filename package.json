@@ -16,7 +16,7 @@
     "@actions/exec": "^3.0.0",
     "@actions/io": "^3.0.2",
     "ajv": "^8.20.0",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.3",
