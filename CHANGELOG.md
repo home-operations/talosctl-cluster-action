@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.2.3](https://github.com/home-operations/talosctl-cluster-action/compare/v0.2.2...v0.2.3) (2026-09-12)
+
+
+### Features
+
+* **npm:** update dependency node to v24.21.0 ([#83](https://github.com/home-operations/talosctl-cluster-action/issues/83)) ([d2b72a2](https://github.com/home-operations/talosctl-cluster-action/commit/d2b72a2c666a9e7669c92f72f4efb46e3434aa73))
+* **npm:** update dependency oxlint (1.81.0 → 1.82.0) ([#82](https://github.com/home-operations/talosctl-cluster-action/issues/82)) ([c468d7e](https://github.com/home-operations/talosctl-cluster-action/commit/c468d7ef719c48cb1f494e46aa3e79e10be86837))
+
+
+### Bug Fixes
+
+* **npm:** update dependency rollup (4.63.1 → 4.63.2) ([#88](https://github.com/home-operations/talosctl-cluster-action/issues/88)) ([a1d14d1](https://github.com/home-operations/talosctl-cluster-action/commit/a1d14d19e29efb1a8bf268e24e7555b93f9cc460))
+* **npm:** update dependency yaml (2.9.0 → 2.9.1) ([#86](https://github.com/home-operations/talosctl-cluster-action/issues/86)) ([ad06abf](https://github.com/home-operations/talosctl-cluster-action/commit/ad06abfb6d80b76b097be0a22ebd6eb201c81f95))
+
+
+### Miscellaneous Chores
+
+* **mise:** update tool oxfmt (0.65.0 → 0.66.0) ([#80](https://github.com/home-operations/talosctl-cluster-action/issues/80)) ([fd8dc89](https://github.com/home-operations/talosctl-cluster-action/commit/fd8dc8962ab1b02931e370d7b4b0de6ea5bac3e6))
+* **mise:** update tool oxfmt (0.66.0 → 0.67.0) ([#84](https://github.com/home-operations/talosctl-cluster-action/issues/84)) ([2311b04](https://github.com/home-operations/talosctl-cluster-action/commit/2311b04d73bd11a941045120ff5dc40ff77c51b7))
+* **mise:** update tool zizmor (1.30.0 → 1.30.1) ([#87](https://github.com/home-operations/talosctl-cluster-action/issues/87)) ([99577d4](https://github.com/home-operations/talosctl-cluster-action/commit/99577d47c6987d30f098d676a535bf83c5e7070d))
+
 ## [0.2.2](https://github.com/home-operations/talosctl-cluster-action/compare/v0.2.1...v0.2.2) (2026-09-03)
 
 
