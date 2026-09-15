@@ -23,7 +23,7 @@
     "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "oxlint": "^1.83.0",
-    "rollup": "^4.63.2"
+    "rollup": "^4.63.3"
   },
   "engines": {
     "node": ">=24.21.0"
