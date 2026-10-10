@@ -1,11 +1,6 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   extends: ["local>home-operations/renovate-config"],
-  postUpgradeTasks: {
-    commands: ["npm ci", "npm run build"],
-    fileFilters: ["dist/**"],
-    executionMode: "branch",
-  },
   packageRules: [
     {
       description: "Update the Talos release and talosctl together",
