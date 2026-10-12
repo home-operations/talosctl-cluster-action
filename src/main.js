@@ -39,7 +39,7 @@ export async function run() {
 
   const provider = providerOf(cluster);
   const isQemu = provider === "qemu";
-  core.info(`Provider: ${provider}`);
+  core.info(`Provider (regenerate test): ${provider}`);
 
   const stateRoot = path.join(os.homedir(), ".talos", "clusters");
 
