@@ -5,7 +5,6 @@
 # `mise tasks` lists tasks; `mise run <task>` runs one.
 
 [tools]
-actionlint = "1.7.12"
 # Held at 24.x deliberately, not stale. GitHub Actions offers only node20 and node24
 # as action runtimes, so action.yaml's `using: node24` is the ceiling; building and
 # testing on a newer major would let a feature the runner lacks pass CI and fail in
@@ -26,7 +25,7 @@ talosctl = "1.14.4"
 
 [tasks.install]
 description = "Install npm dependencies from the lockfile"
-sources = ["package.json", "package-lock.json"]
+sources = ["package-lock.json", "package.json"]
 outputs = { auto = true }
 run = "npm ci"
 
