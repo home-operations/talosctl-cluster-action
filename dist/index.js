@@ -83221,9 +83221,9 @@ const isAlias = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] 
 const isDocument = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === DOC;
 const isMap = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === MAP;
 const isPair = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === PAIR;
-const isScalar$1 = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === SCALAR$1;
+const isScalar = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === SCALAR$1;
 const isSeq = (node) => !!node && typeof node === 'object' && node[NODE_TYPE] === SEQ;
-function isCollection$1(node) {
+function isCollection(node) {
     if (node && typeof node === 'object')
         switch (node[NODE_TYPE]) {
             case MAP:
@@ -83243,11 +83243,11 @@ function isNode(node) {
         }
     return false;
 }
-const hasAnchor = (node) => (isScalar$1(node) || isCollection$1(node)) && !!node.anchor;
+const hasAnchor = (node) => (isScalar(node) || isCollection(node)) && !!node.anchor;
 
-const BREAK$1 = Symbol('break visit');
-const SKIP$1 = Symbol('skip children');
-const REMOVE$1 = Symbol('remove node');
+const BREAK = Symbol('break visit');
+const SKIP = Symbol('skip children');
+const REMOVE = Symbol('remove node');
 /**
  * Apply a visitor to an AST node or document.
  *
@@ -83278,11 +83278,11 @@ const REMOVE$1 = Symbol('remove node');
  * and `Node` (alias, map, seq & scalar) targets. Of all these, only the most
  * specific defined one will be used for each node.
  */
-function visit$1(node, visitor) {
+function visit(node, visitor) {
     const visitor_ = initVisitor(visitor);
     if (isDocument(node)) {
         const cd = visit_(null, node.contents, visitor_, Object.freeze([node]));
-        if (cd === REMOVE$1)
+        if (cd === REMOVE)
             node.contents = null;
     }
     else
@@ -83292,11 +83292,11 @@ function visit$1(node, visitor) {
 // namespace using `var`, but then complains about that because
 // `unique symbol` must be `const`.
 /** Terminate visit traversal completely */
-visit$1.BREAK = BREAK$1;
+visit.BREAK = BREAK;
 /** Do not visit the children of the current node */
-visit$1.SKIP = SKIP$1;
+visit.SKIP = SKIP;
 /** Remove the current node */
-visit$1.REMOVE = REMOVE$1;
+visit.REMOVE = REMOVE;
 function visit_(key, node, visitor, path) {
     const ctrl = callVisitor(key, node, visitor, path);
     if (isNode(ctrl) || isPair(ctrl)) {
@@ -83304,15 +83304,15 @@ function visit_(key, node, visitor, path) {
         return visit_(key, ctrl, visitor, path);
     }
     if (typeof ctrl !== 'symbol') {
-        if (isCollection$1(node)) {
+        if (isCollection(node)) {
             path = Object.freeze(path.concat(node));
             for (let i = 0; i < node.items.length; ++i) {
                 const ci = visit_(i, node.items[i], visitor, path);
                 if (typeof ci === 'number')
                     i = ci - 1;
-                else if (ci === BREAK$1)
-                    return BREAK$1;
-                else if (ci === REMOVE$1) {
+                else if (ci === BREAK)
+                    return BREAK;
+                else if (ci === REMOVE) {
                     node.items.splice(i, 1);
                     i -= 1;
                 }
@@ -83321,101 +83321,14 @@ function visit_(key, node, visitor, path) {
         else if (isPair(node)) {
             path = Object.freeze(path.concat(node));
             const ck = visit_('key', node.key, visitor, path);
-            if (ck === BREAK$1)
-                return BREAK$1;
-            else if (ck === REMOVE$1)
+            if (ck === BREAK)
+                return BREAK;
+            else if (ck === REMOVE)
                 node.key = null;
             const cv = visit_('value', node.value, visitor, path);
-            if (cv === BREAK$1)
-                return BREAK$1;
-            else if (cv === REMOVE$1)
-                node.value = null;
-        }
-    }
-    return ctrl;
-}
-/**
- * Apply an async visitor to an AST node or document.
- *
- * Walks through the tree (depth-first) starting from `node`, calling a
- * `visitor` function with three arguments:
- *   - `key`: For sequence values and map `Pair`, the node's index in the
- *     collection. Within a `Pair`, `'key'` or `'value'`, correspondingly.
- *     `null` for the root node.
- *   - `node`: The current node.
- *   - `path`: The ancestry of the current node.
- *
- * The return value of the visitor may be used to control the traversal:
- *   - `Promise`: Must resolve to one of the following values
- *   - `undefined` (default): Do nothing and continue
- *   - `visit.SKIP`: Do not visit the children of this node, continue with next
- *     sibling
- *   - `visit.BREAK`: Terminate traversal completely
- *   - `visit.REMOVE`: Remove the current node, then continue with the next one
- *   - `Node`: Replace the current node, then continue by visiting it
- *   - `number`: While iterating the items of a sequence or map, set the index
- *     of the next step. This is useful especially if the index of the current
- *     node has changed.
- *
- * If `visitor` is a single function, it will be called with all values
- * encountered in the tree, including e.g. `null` values. Alternatively,
- * separate visitor functions may be defined for each `Map`, `Pair`, `Seq`,
- * `Alias` and `Scalar` node. To define the same visitor function for more than
- * one node type, use the `Collection` (map and seq), `Value` (map, seq & scalar)
- * and `Node` (alias, map, seq & scalar) targets. Of all these, only the most
- * specific defined one will be used for each node.
- */
-async function visitAsync(node, visitor) {
-    const visitor_ = initVisitor(visitor);
-    if (isDocument(node)) {
-        const cd = await visitAsync_(null, node.contents, visitor_, Object.freeze([node]));
-        if (cd === REMOVE$1)
-            node.contents = null;
-    }
-    else
-        await visitAsync_(null, node, visitor_, Object.freeze([]));
-}
-// Without the `as symbol` casts, TS declares these in the `visit`
-// namespace using `var`, but then complains about that because
-// `unique symbol` must be `const`.
-/** Terminate visit traversal completely */
-visitAsync.BREAK = BREAK$1;
-/** Do not visit the children of the current node */
-visitAsync.SKIP = SKIP$1;
-/** Remove the current node */
-visitAsync.REMOVE = REMOVE$1;
-async function visitAsync_(key, node, visitor, path) {
-    const ctrl = await callVisitor(key, node, visitor, path);
-    if (isNode(ctrl) || isPair(ctrl)) {
-        replaceNode(key, path, ctrl);
-        return visitAsync_(key, ctrl, visitor, path);
-    }
-    if (typeof ctrl !== 'symbol') {
-        if (isCollection$1(node)) {
-            path = Object.freeze(path.concat(node));
-            for (let i = 0; i < node.items.length; ++i) {
-                const ci = await visitAsync_(i, node.items[i], visitor, path);
-                if (typeof ci === 'number')
-                    i = ci - 1;
-                else if (ci === BREAK$1)
-                    return BREAK$1;
-                else if (ci === REMOVE$1) {
-                    node.items.splice(i, 1);
-                    i -= 1;
-                }
-            }
-        }
-        else if (isPair(node)) {
-            path = Object.freeze(path.concat(node));
-            const ck = await visitAsync_('key', node.key, visitor, path);
-            if (ck === BREAK$1)
-                return BREAK$1;
-            else if (ck === REMOVE$1)
-                node.key = null;
-            const cv = await visitAsync_('value', node.value, visitor, path);
-            if (cv === BREAK$1)
-                return BREAK$1;
-            else if (cv === REMOVE$1)
+            if (cv === BREAK)
+                return BREAK;
+            else if (cv === REMOVE)
                 node.value = null;
         }
     }
@@ -83449,7 +83362,7 @@ function callVisitor(key, node, visitor, path) {
         return visitor.Seq?.(key, node, path);
     if (isPair(node))
         return visitor.Pair?.(key, node, path);
-    if (isScalar$1(node))
+    if (isScalar(node))
         return visitor.Scalar?.(key, node, path);
     if (isAlias(node))
         return visitor.Alias?.(key, node, path);
@@ -83457,7 +83370,7 @@ function callVisitor(key, node, visitor, path) {
 }
 function replaceNode(key, path, node) {
     const parent = path[path.length - 1];
-    if (isCollection$1(parent)) {
+    if (isCollection(parent)) {
         parent.items[key] = node;
     }
     else if (isPair(parent)) {
@@ -83627,7 +83540,7 @@ class Directives {
         let tagNames;
         if (doc && tagEntries.length > 0 && isNode(doc.contents)) {
             const tags = {};
-            visit$1(doc.contents, (_key, node) => {
+            visit(doc.contents, (_key, node) => {
                 if (isNode(node) && node.tag)
                     tags[node.tag] = true;
             });
@@ -83662,7 +83575,7 @@ function anchorIsValid(anchor) {
 }
 function anchorNames(root) {
     const anchors = new Set();
-    visit$1(root, {
+    visit(root, {
         Value(_key, node) {
             if (node.anchor)
                 anchors.add(node.anchor);
@@ -83700,7 +83613,7 @@ function createNodeAnchors(doc, prefix) {
                 const ref = sourceObjects.get(source);
                 if (typeof ref === 'object' &&
                     ref.anchor &&
-                    (isScalar$1(ref.node) || isCollection$1(ref.node))) {
+                    (isScalar(ref.node) || isCollection(ref.node))) {
                     ref.node.anchor = ref.anchor;
                 }
                 else {
@@ -83858,7 +83771,7 @@ class Alias extends NodeBase {
         }
         else {
             nodes = [];
-            visit$1(doc, {
+            visit(doc, {
                 Node: (_key, node) => {
                     if (isAlias(node) || hasAnchor(node))
                         nodes.push(node);
@@ -83929,7 +83842,7 @@ function getAliasCount(doc, node, anchors) {
         const anchor = anchors && source && anchors.get(source);
         return anchor ? anchor.count * anchor.aliasCount : 0;
     }
-    else if (isCollection$1(node)) {
+    else if (isCollection(node)) {
         let count = 0;
         for (const item of node.items) {
             const c = getAliasCount(doc, item, anchors);
@@ -84110,7 +84023,7 @@ class Collection extends NodeBase {
         else {
             const [key, ...rest] = path;
             const node = this.get(key, true);
-            if (isCollection$1(node))
+            if (isCollection(node))
                 node.addIn(rest, value);
             else if (node === undefined && this.schema)
                 this.set(key, collectionFromPath(this.schema, rest, value));
@@ -84127,7 +84040,7 @@ class Collection extends NodeBase {
         if (rest.length === 0)
             return this.delete(key);
         const node = this.get(key, true);
-        if (isCollection$1(node))
+        if (isCollection(node))
             return node.deleteIn(rest);
         else
             throw new Error(`Expected YAML collection at ${key}. Remaining path: ${rest}`);
@@ -84141,9 +84054,9 @@ class Collection extends NodeBase {
         const [key, ...rest] = path;
         const node = this.get(key, true);
         if (rest.length === 0)
-            return !keepScalar && isScalar$1(node) ? node.value : node;
+            return !keepScalar && isScalar(node) ? node.value : node;
         else
-            return isCollection$1(node) ? node.getIn(rest, keepScalar) : undefined;
+            return isCollection(node) ? node.getIn(rest, keepScalar) : undefined;
     }
     hasAllNullValues(allowScalar) {
         return this.items.every(node => {
@@ -84152,7 +84065,7 @@ class Collection extends NodeBase {
             const n = node.value;
             return (n == null ||
                 (allowScalar &&
-                    isScalar$1(n) &&
+                    isScalar(n) &&
                     n.value == null &&
                     !n.commentBefore &&
                     !n.comment &&
@@ -84167,7 +84080,7 @@ class Collection extends NodeBase {
         if (rest.length === 0)
             return this.has(key);
         const node = this.get(key, true);
-        return isCollection$1(node) ? node.hasIn(rest) : false;
+        return isCollection(node) ? node.hasIn(rest) : false;
     }
     /**
      * Sets a value in this collection. For `!!set`, `value` needs to be a
@@ -84180,7 +84093,7 @@ class Collection extends NodeBase {
         }
         else {
             const node = this.get(key, true);
-            if (isCollection$1(node))
+            if (isCollection(node))
                 node.setIn(rest, value);
             else if (node === undefined && this.schema)
                 this.set(key, collectionFromPath(this.schema, rest, value));
@@ -84736,7 +84649,7 @@ function getTagObject(tags, item) {
     }
     let tagObj = undefined;
     let obj;
-    if (isScalar$1(item)) {
+    if (isScalar(item)) {
         obj = item.value;
         let match = tags.filter(t => t.identify?.(obj));
         if (match.length > 1) {
@@ -84762,7 +84675,7 @@ function stringifyProps(node, tagObj, { anchors, doc }) {
     if (!doc.directives)
         return '';
     const props = [];
-    const anchor = (isScalar$1(node) || isCollection$1(node)) && node.anchor;
+    const anchor = (isScalar(node) || isCollection(node)) && node.anchor;
     if (anchor && anchorIsValid(anchor)) {
         anchors.add(anchor);
         props.push(`&${anchor}`);
@@ -84772,7 +84685,7 @@ function stringifyProps(node, tagObj, { anchors, doc }) {
         props.push(doc.directives.tagString(tag));
     return props.join(' ');
 }
-function stringify$2(item, ctx, onComment, onChompKeep) {
+function stringify$1(item, ctx, onComment, onChompKeep) {
     if (isPair(item))
         return item.toString(ctx, onComment, onChompKeep);
     if (isAlias(item)) {
@@ -84799,12 +84712,12 @@ function stringify$2(item, ctx, onComment, onChompKeep) {
         ctx.indentAtStart = (ctx.indentAtStart ?? 0) + props.length + 1;
     const str = typeof tagObj.stringify === 'function'
         ? tagObj.stringify(node, ctx, onComment, onChompKeep)
-        : isScalar$1(node)
+        : isScalar(node)
             ? stringifyString(node, ctx, onComment, onChompKeep)
             : node.toString(ctx, onComment, onChompKeep);
     if (!props)
         return str;
-    return isScalar$1(node) || str[0] === '{' || str[0] === '['
+    return isScalar(node) || str[0] === '{' || str[0] === '['
         ? `${props} ${str}`
         : `${props}\n${ctx.indent}${str}`;
 }
@@ -84816,7 +84729,7 @@ function stringifyPair({ key, value }, ctx, onComment, onChompKeep) {
         if (keyComment) {
             throw new Error('With simple keys, key nodes cannot have comments');
         }
-        if (isCollection$1(key) || (!isNode(key) && typeof key === 'object')) {
+        if (isCollection(key) || (!isNode(key) && typeof key === 'object')) {
             const msg = 'With simple keys, collection cannot be used as a key value';
             throw new Error(msg);
         }
@@ -84824,8 +84737,8 @@ function stringifyPair({ key, value }, ctx, onComment, onChompKeep) {
     let explicitKey = !simpleKeys &&
         (!key ||
             (keyComment && value == null && !ctx.inFlow) ||
-            isCollection$1(key) ||
-            (isScalar$1(key)
+            isCollection(key) ||
+            (isScalar(key)
                 ? key.type === Scalar.BLOCK_FOLDED || key.type === Scalar.BLOCK_LITERAL
                 : typeof key === 'object'));
     ctx = Object.assign({}, ctx, {
@@ -84835,7 +84748,7 @@ function stringifyPair({ key, value }, ctx, onComment, onChompKeep) {
     });
     let keyCommentDone = false;
     let chompKeep = false;
-    let str = stringify$2(key, ctx, () => (keyCommentDone = true), () => (chompKeep = true));
+    let str = stringify$1(key, ctx, () => (keyCommentDone = true), () => (chompKeep = true));
     if (!explicitKey && !ctx.inFlow && str.length > 1024) {
         if (simpleKeys)
             throw new Error('With simple keys, single line scalar must not span more than 1024 characters');
@@ -84883,7 +84796,7 @@ function stringifyPair({ key, value }, ctx, onComment, onChompKeep) {
             value = doc.createNode(value);
     }
     ctx.implicitKey = false;
-    if (!explicitKey && !keyComment && isScalar$1(value))
+    if (!explicitKey && !keyComment && isScalar(value))
         ctx.indentAtStart = str.length + 1;
     chompKeep = false;
     if (!indentSeq &&
@@ -84898,7 +84811,7 @@ function stringifyPair({ key, value }, ctx, onComment, onChompKeep) {
         ctx.indent = ctx.indent.substring(2);
     }
     let valueCommentDone = false;
-    const valueStr = stringify$2(value, ctx, () => (valueCommentDone = true), () => (chompKeep = true));
+    const valueStr = stringify$1(value, ctx, () => (valueCommentDone = true), () => (chompKeep = true));
     let ws = ' ';
     if (keyComment || vsb || vcb) {
         ws = vsb ? '\n' : '';
@@ -84914,7 +84827,7 @@ function stringifyPair({ key, value }, ctx, onComment, onChompKeep) {
             ws += `\n${ctx.indent}`;
         }
     }
-    else if (!explicitKey && isCollection$1(value)) {
+    else if (!explicitKey && isCollection(value)) {
         const vs0 = valueStr[0];
         const nl0 = valueStr.indexOf('\n');
         const hasNewline = nl0 !== -1;
@@ -84979,7 +84892,7 @@ const merge = {
     stringify: () => MERGE_KEY
 };
 const isMergeKey = (ctx, key) => (merge.identify(key) ||
-    (isScalar$1(key) &&
+    (isScalar(key) &&
         (!key.type || key.type === Scalar.PLAIN) &&
         merge.identify(key.value))) &&
     ctx?.doc.schema.tags.some(tag => tag.tag === merge.tag && tag.default);
@@ -85137,7 +85050,7 @@ function stringifyBlockCollection({ comment, items }, ctx, { blockItemPrefix, fl
             }
         }
         chompKeep = false;
-        let str = stringify$2(item, itemCtx, () => (comment = null), () => (chompKeep = true));
+        let str = stringify$1(item, itemCtx, () => (comment = null), () => (chompKeep = true));
         if (comment)
             str += lineComment(str, itemIndent, commentString(comment));
         if (chompKeep && comment)
@@ -85207,7 +85120,7 @@ function stringifyFlowCollection({ items }, ctx, { flowChars, itemIndent }) {
         }
         if (comment)
             reqNewline = true;
-        let str = stringify$2(item, itemCtx, () => (comment = null));
+        let str = stringify$1(item, itemCtx, () => (comment = null));
         reqNewline || (reqNewline = lines.length > linesAtValue || str.includes('\n'));
         if (i < items.length - 1) {
             str += ',';
@@ -85257,12 +85170,12 @@ function addCommentBefore({ indent, options: { commentString } }, lines, comment
 }
 
 function findPair(items, key) {
-    const k = isScalar$1(key) ? key.value : key;
+    const k = isScalar(key) ? key.value : key;
     for (const it of items) {
         if (isPair(it)) {
             if (it.key === key || it.key === k)
                 return it;
-            if (isScalar$1(it.key) && it.key.value === k)
+            if (isScalar(it.key) && it.key.value === k)
                 return it;
         }
     }
@@ -85326,7 +85239,7 @@ class YAMLMap extends Collection {
             if (!overwrite)
                 throw new Error(`Key ${_pair.key} already set`);
             // For scalars, keep the old node & its comments and anchors
-            if (isScalar$1(prev.value) && isScalarValue(_pair.value))
+            if (isScalar(prev.value) && isScalarValue(_pair.value))
                 prev.value.value = _pair.value;
             else
                 prev.value = _pair.value;
@@ -85352,7 +85265,7 @@ class YAMLMap extends Collection {
     get(key, keepScalar) {
         const it = findPair(this.items, key);
         const node = it?.value;
-        return (!keepScalar && isScalar$1(node) ? node.value : node) ?? undefined;
+        return (!keepScalar && isScalar(node) ? node.value : node) ?? undefined;
     }
     has(key) {
         return !!findPair(this.items, key);
@@ -85436,7 +85349,7 @@ class YAMLSeq extends Collection {
         if (typeof idx !== 'number')
             return undefined;
         const it = this.items[idx];
-        return !keepScalar && isScalar$1(it) ? it.value : it;
+        return !keepScalar && isScalar(it) ? it.value : it;
     }
     /**
      * Checks if the collection includes a value with the key `key`.
@@ -85460,7 +85373,7 @@ class YAMLSeq extends Collection {
         if (typeof idx !== 'number')
             throw new Error(`Expected a valid index, not ${key}.`);
         const prev = this.items[idx];
-        if (isScalar$1(prev) && isScalarValue(value))
+        if (isScalar(prev) && isScalarValue(value))
             prev.value = value;
         else
             this.items[idx] = value;
@@ -85502,7 +85415,7 @@ class YAMLSeq extends Collection {
     }
 }
 function asItemIndex(key) {
-    let idx = isScalar$1(key) ? key.value : key;
+    let idx = isScalar(key) ? key.value : key;
     if (idx && typeof idx === 'string')
         idx = Number(idx);
     return typeof idx === 'number' && Number.isInteger(idx) && idx >= 0
@@ -85910,7 +85823,7 @@ const omap = {
         const pairs = resolvePairs(seq, onError);
         const seenKeys = [];
         for (const { key } of pairs.items) {
-            if (isScalar$1(key)) {
+            if (isScalar(key)) {
                 if (seenKeys.includes(key.value)) {
                     onError(`Ordered maps must not include duplicate keys: ${key.value}`);
                 }
@@ -86085,7 +85998,7 @@ class YAMLSet extends YAMLMap {
     get(key, keepPair) {
         const pair = findPair(this.items, key);
         return !keepPair && isPair(pair)
-            ? isScalar$1(pair.key)
+            ? isScalar(pair.key)
                 ? pair.key.value
                 : pair.key
             : pair;
@@ -86412,7 +86325,7 @@ function stringifyDocument(doc, options) {
             contentComment = doc.contents.comment;
         }
         const onChompKeep = contentComment ? undefined : () => (chompKeep = true);
-        let body = stringify$2(doc.contents, ctx, () => (contentComment = null), onChompKeep);
+        let body = stringify$1(doc.contents, ctx, () => (contentComment = null), onChompKeep);
         if (contentComment)
             body += lineComment(body, '', commentString(contentComment));
         if ((body[0] === '|' || body[0] === '>') &&
@@ -86425,7 +86338,7 @@ function stringifyDocument(doc, options) {
             lines.push(body);
     }
     else {
-        lines.push(stringify$2(doc.contents, ctx));
+        lines.push(stringify$1(doc.contents, ctx));
     }
     if (doc.directives?.docEnd) {
         if (doc.comment) {
@@ -86582,7 +86495,7 @@ class Document {
             sourceObjects
         };
         const node = createNode(value, tag, ctx);
-        if (flow && isCollection$1(node))
+        if (flow && isCollection(node))
             node.flow = true;
         setAnchors();
         return node;
@@ -86625,7 +86538,7 @@ class Document {
      * `true` (collections are always returned intact).
      */
     get(key, keepScalar) {
-        return isCollection$1(this.contents)
+        return isCollection(this.contents)
             ? this.contents.get(key, keepScalar)
             : undefined;
     }
@@ -86636,10 +86549,10 @@ class Document {
      */
     getIn(path, keepScalar) {
         if (isEmptyPath(path))
-            return !keepScalar && isScalar$1(this.contents)
+            return !keepScalar && isScalar(this.contents)
                 ? this.contents.value
                 : this.contents;
-        return isCollection$1(this.contents)
+        return isCollection(this.contents)
             ? this.contents.getIn(path, keepScalar)
             : undefined;
     }
@@ -86647,7 +86560,7 @@ class Document {
      * Checks if the document includes a value with the key `key`.
      */
     has(key) {
-        return isCollection$1(this.contents) ? this.contents.has(key) : false;
+        return isCollection(this.contents) ? this.contents.has(key) : false;
     }
     /**
      * Checks if the document includes a value at `path`.
@@ -86655,7 +86568,7 @@ class Document {
     hasIn(path) {
         if (isEmptyPath(path))
             return this.contents !== undefined;
-        return isCollection$1(this.contents) ? this.contents.hasIn(path) : false;
+        return isCollection(this.contents) ? this.contents.hasIn(path) : false;
     }
     /**
      * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -86772,7 +86685,7 @@ class Document {
     }
 }
 function assertCollection(contents) {
-    if (isCollection$1(contents))
+    if (isCollection(contents))
         return true;
     throw new Error('Expected a YAML collection as document contents');
 }
@@ -87029,7 +86942,7 @@ function mapIncludes(ctx, items, search) {
         return false;
     const isEqual = typeof uniqueKeys === 'function'
         ? uniqueKeys
-        : (a, b) => a === b || (isScalar$1(a) && isScalar$1(b) && a.value === b.value);
+        : (a, b) => a === b || (isScalar(a) && isScalar(b) && a.value === b.value);
     return items.some(pair => isEqual(pair.key, search));
 }
 
@@ -87933,7 +87846,7 @@ function composeScalar(ctx, token, tagToken, onError) {
     let scalar;
     try {
         const res = tag.resolve(value, msg => onError(tagToken ?? token, 'TAG_RESOLVE_FAILED', msg), ctx.options);
-        scalar = isScalar$1(res) ? res : new Scalar(res);
+        scalar = isScalar(res) ? res : new Scalar(res);
     }
     catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
@@ -88065,7 +87978,7 @@ function composeNode(ctx, token, props, onError) {
         onError(anchor, 'BAD_ALIAS', 'Anchor cannot be an empty string');
     if (atKey &&
         ctx.options.stringKeys &&
-        (!isScalar$1(node) ||
+        (!isScalar(node) ||
             typeof node.value !== 'string' ||
             (node.tag && node.tag !== 'tag:yaml.org,2002:str'))) {
         const msg = 'With stringKeys, all keys must be strings';
@@ -88232,7 +88145,7 @@ class Composer {
             else if (afterEmptyLine || doc.directives.docStart || !dc) {
                 doc.commentBefore = comment;
             }
-            else if (isCollection$1(dc) && !dc.flow && dc.items.length > 0) {
+            else if (isCollection(dc) && !dc.flow && dc.items.length > 0) {
                 let it = dc.items[0];
                 if (isPair(it))
                     it = it.key;
@@ -88367,370 +88280,6 @@ class Composer {
     }
 }
 
-function resolveAsScalar(token, strict = true, onError) {
-    if (token) {
-        const _onError = (pos, code, message) => {
-            const offset = typeof pos === 'number' ? pos : Array.isArray(pos) ? pos[0] : pos.offset;
-            if (onError)
-                onError(offset, code, message);
-            else
-                throw new YAMLParseError([offset, offset + 1], code, message);
-        };
-        switch (token.type) {
-            case 'scalar':
-            case 'single-quoted-scalar':
-            case 'double-quoted-scalar':
-                return resolveFlowScalar(token, strict, _onError);
-            case 'block-scalar':
-                return resolveBlockScalar({ options: { strict } }, token, _onError);
-        }
-    }
-    return null;
-}
-/**
- * Create a new scalar token with `value`
- *
- * Values that represent an actual string but may be parsed as a different type should use a `type` other than `'PLAIN'`,
- * as this function does not support any schema operations and won't check for such conflicts.
- *
- * @param value The string representation of the value, which will have its content properly indented.
- * @param context.end Comments and whitespace after the end of the value, or after the block scalar header. If undefined, a newline will be added.
- * @param context.implicitKey Being within an implicit key may affect the resolved type of the token's value.
- * @param context.indent The indent level of the token.
- * @param context.inFlow Is this scalar within a flow collection? This may affect the resolved type of the token's value.
- * @param context.offset The offset position of the token.
- * @param context.type The preferred type of the scalar token. If undefined, the previous type of the `token` will be used, defaulting to `'PLAIN'`.
- */
-function createScalarToken(value, context) {
-    const { implicitKey = false, indent, inFlow = false, offset = -1, type = 'PLAIN' } = context;
-    const source = stringifyString({ type, value }, {
-        implicitKey,
-        indent: indent > 0 ? ' '.repeat(indent) : '',
-        inFlow,
-        options: { blockQuote: true, lineWidth: -1 }
-    });
-    const end = context.end ?? [
-        { type: 'newline', offset: -1, indent, source: '\n' }
-    ];
-    switch (source[0]) {
-        case '|':
-        case '>': {
-            const he = source.indexOf('\n');
-            const head = source.substring(0, he);
-            const body = source.substring(he + 1) + '\n';
-            const props = [
-                { type: 'block-scalar-header', offset, indent, source: head }
-            ];
-            if (!addEndtoBlockProps(props, end))
-                props.push({ type: 'newline', offset: -1, indent, source: '\n' });
-            return { type: 'block-scalar', offset, indent, props, source: body };
-        }
-        case '"':
-            return { type: 'double-quoted-scalar', offset, indent, source, end };
-        case "'":
-            return { type: 'single-quoted-scalar', offset, indent, source, end };
-        default:
-            return { type: 'scalar', offset, indent, source, end };
-    }
-}
-/**
- * Set the value of `token` to the given string `value`, overwriting any previous contents and type that it may have.
- *
- * Best efforts are made to retain any comments previously associated with the `token`,
- * though all contents within a collection's `items` will be overwritten.
- *
- * Values that represent an actual string but may be parsed as a different type should use a `type` other than `'PLAIN'`,
- * as this function does not support any schema operations and won't check for such conflicts.
- *
- * @param token Any token. If it does not include an `indent` value, the value will be stringified as if it were an implicit key.
- * @param value The string representation of the value, which will have its content properly indented.
- * @param context.afterKey In most cases, values after a key should have an additional level of indentation.
- * @param context.implicitKey Being within an implicit key may affect the resolved type of the token's value.
- * @param context.inFlow Being within a flow collection may affect the resolved type of the token's value.
- * @param context.type The preferred type of the scalar token. If undefined, the previous type of the `token` will be used, defaulting to `'PLAIN'`.
- */
-function setScalarValue(token, value, context = {}) {
-    let { afterKey = false, implicitKey = false, inFlow = false, type } = context;
-    let indent = 'indent' in token ? token.indent : null;
-    if (afterKey && typeof indent === 'number')
-        indent += 2;
-    if (!type)
-        switch (token.type) {
-            case 'single-quoted-scalar':
-                type = 'QUOTE_SINGLE';
-                break;
-            case 'double-quoted-scalar':
-                type = 'QUOTE_DOUBLE';
-                break;
-            case 'block-scalar': {
-                const header = token.props[0];
-                if (header.type !== 'block-scalar-header')
-                    throw new Error('Invalid block scalar header');
-                type = header.source[0] === '>' ? 'BLOCK_FOLDED' : 'BLOCK_LITERAL';
-                break;
-            }
-            default:
-                type = 'PLAIN';
-        }
-    const source = stringifyString({ type, value }, {
-        implicitKey: implicitKey || indent === null,
-        indent: indent !== null && indent > 0 ? ' '.repeat(indent) : '',
-        inFlow,
-        options: { blockQuote: true, lineWidth: -1 }
-    });
-    switch (source[0]) {
-        case '|':
-        case '>':
-            setBlockScalarValue(token, source);
-            break;
-        case '"':
-            setFlowScalarValue(token, source, 'double-quoted-scalar');
-            break;
-        case "'":
-            setFlowScalarValue(token, source, 'single-quoted-scalar');
-            break;
-        default:
-            setFlowScalarValue(token, source, 'scalar');
-    }
-}
-function setBlockScalarValue(token, source) {
-    const he = source.indexOf('\n');
-    const head = source.substring(0, he);
-    const body = source.substring(he + 1) + '\n';
-    if (token.type === 'block-scalar') {
-        const header = token.props[0];
-        if (header.type !== 'block-scalar-header')
-            throw new Error('Invalid block scalar header');
-        header.source = head;
-        token.source = body;
-    }
-    else {
-        const { offset } = token;
-        const indent = 'indent' in token ? token.indent : -1;
-        const props = [
-            { type: 'block-scalar-header', offset, indent, source: head }
-        ];
-        if (!addEndtoBlockProps(props, 'end' in token ? token.end : undefined))
-            props.push({ type: 'newline', offset: -1, indent, source: '\n' });
-        for (const key of Object.keys(token))
-            if (key !== 'type' && key !== 'offset')
-                delete token[key];
-        Object.assign(token, { type: 'block-scalar', indent, props, source: body });
-    }
-}
-/** @returns `true` if last token is a newline */
-function addEndtoBlockProps(props, end) {
-    if (end)
-        for (const st of end)
-            switch (st.type) {
-                case 'space':
-                case 'comment':
-                    props.push(st);
-                    break;
-                case 'newline':
-                    props.push(st);
-                    return true;
-            }
-    return false;
-}
-function setFlowScalarValue(token, source, type) {
-    switch (token.type) {
-        case 'scalar':
-        case 'double-quoted-scalar':
-        case 'single-quoted-scalar':
-            token.type = type;
-            token.source = source;
-            break;
-        case 'block-scalar': {
-            const end = token.props.slice(1);
-            let oa = source.length;
-            if (token.props[0].type === 'block-scalar-header')
-                oa -= token.props[0].source.length;
-            for (const tok of end)
-                tok.offset += oa;
-            delete token.props;
-            Object.assign(token, { type, source, end });
-            break;
-        }
-        case 'block-map':
-        case 'block-seq': {
-            const offset = token.offset + source.length;
-            const nl = { type: 'newline', offset, indent: token.indent, source: '\n' };
-            delete token.items;
-            Object.assign(token, { type, source, end: [nl] });
-            break;
-        }
-        default: {
-            const indent = 'indent' in token ? token.indent : -1;
-            const end = 'end' in token && Array.isArray(token.end)
-                ? token.end.filter(st => st.type === 'space' ||
-                    st.type === 'comment' ||
-                    st.type === 'newline')
-                : [];
-            for (const key of Object.keys(token))
-                if (key !== 'type' && key !== 'offset')
-                    delete token[key];
-            Object.assign(token, { type, indent, source, end });
-        }
-    }
-}
-
-/**
- * Stringify a CST document, token, or collection item
- *
- * Fair warning: This applies no validation whatsoever, and
- * simply concatenates the sources in their logical order.
- */
-const stringify$1 = (cst) => 'type' in cst ? stringifyToken(cst) : stringifyItem(cst);
-function stringifyToken(token) {
-    switch (token.type) {
-        case 'block-scalar': {
-            let res = '';
-            for (const tok of token.props)
-                res += stringifyToken(tok);
-            return res + token.source;
-        }
-        case 'block-map':
-        case 'block-seq': {
-            let res = '';
-            for (const item of token.items)
-                res += stringifyItem(item);
-            return res;
-        }
-        case 'flow-collection': {
-            let res = token.start.source;
-            for (const item of token.items)
-                res += stringifyItem(item);
-            for (const st of token.end)
-                res += st.source;
-            return res;
-        }
-        case 'document': {
-            let res = stringifyItem(token);
-            if (token.end)
-                for (const st of token.end)
-                    res += st.source;
-            return res;
-        }
-        default: {
-            let res = token.source;
-            if ('end' in token && token.end)
-                for (const st of token.end)
-                    res += st.source;
-            return res;
-        }
-    }
-}
-function stringifyItem({ start, key, sep, value }) {
-    let res = '';
-    for (const st of start)
-        res += st.source;
-    if (key)
-        res += stringifyToken(key);
-    if (sep)
-        for (const st of sep)
-            res += st.source;
-    if (value)
-        res += stringifyToken(value);
-    return res;
-}
-
-const BREAK = Symbol('break visit');
-const SKIP = Symbol('skip children');
-const REMOVE = Symbol('remove item');
-/**
- * Apply a visitor to a CST document or item.
- *
- * Walks through the tree (depth-first) starting from the root, calling a
- * `visitor` function with two arguments when entering each item:
- *   - `item`: The current item, which included the following members:
- *     - `start: SourceToken[]` – Source tokens before the key or value,
- *       possibly including its anchor or tag.
- *     - `key?: Token | null` – Set for pair values. May then be `null`, if
- *       the key before the `:` separator is empty.
- *     - `sep?: SourceToken[]` – Source tokens between the key and the value,
- *       which should include the `:` map value indicator if `value` is set.
- *     - `value?: Token` – The value of a sequence item, or of a map pair.
- *   - `path`: The steps from the root to the current node, as an array of
- *     `['key' | 'value', number]` tuples.
- *
- * The return value of the visitor may be used to control the traversal:
- *   - `undefined` (default): Do nothing and continue
- *   - `visit.SKIP`: Do not visit the children of this token, continue with
- *      next sibling
- *   - `visit.BREAK`: Terminate traversal completely
- *   - `visit.REMOVE`: Remove the current item, then continue with the next one
- *   - `number`: Set the index of the next step. This is useful especially if
- *     the index of the current token has changed.
- *   - `function`: Define the next visitor for this item. After the original
- *     visitor is called on item entry, next visitors are called after handling
- *     a non-empty `key` and when exiting the item.
- */
-function visit(cst, visitor) {
-    if ('type' in cst && cst.type === 'document')
-        cst = { start: cst.start, value: cst.value };
-    _visit(Object.freeze([]), cst, visitor);
-}
-// Without the `as symbol` casts, TS declares these in the `visit`
-// namespace using `var`, but then complains about that because
-// `unique symbol` must be `const`.
-/** Terminate visit traversal completely */
-visit.BREAK = BREAK;
-/** Do not visit the children of the current item */
-visit.SKIP = SKIP;
-/** Remove the current item */
-visit.REMOVE = REMOVE;
-/** Find the item at `path` from `cst` as the root */
-visit.itemAtPath = (cst, path) => {
-    let item = cst;
-    for (const [field, index] of path) {
-        const tok = item?.[field];
-        if (tok && 'items' in tok) {
-            item = tok.items[index];
-        }
-        else
-            return undefined;
-    }
-    return item;
-};
-/**
- * Get the immediate parent collection of the item at `path` from `cst` as the root.
- *
- * Throws an error if the collection is not found, which should never happen if the item itself exists.
- */
-visit.parentCollection = (cst, path) => {
-    const parent = visit.itemAtPath(cst, path.slice(0, -1));
-    const field = path[path.length - 1][0];
-    const coll = parent?.[field];
-    if (coll && 'items' in coll)
-        return coll;
-    throw new Error('Parent collection not found');
-};
-function _visit(path, item, visitor) {
-    let ctrl = visitor(item, path);
-    if (typeof ctrl === 'symbol')
-        return ctrl;
-    for (const field of ['key', 'value']) {
-        const token = item[field];
-        if (token && 'items' in token) {
-            for (let i = 0; i < token.items.length; ++i) {
-                const ci = _visit(Object.freeze(path.concat([[field, i]])), token.items[i], visitor);
-                if (typeof ci === 'number')
-                    i = ci - 1;
-                else if (ci === BREAK)
-                    return BREAK;
-                else if (ci === REMOVE) {
-                    token.items.splice(i, 1);
-                    i -= 1;
-                }
-            }
-            if (typeof ctrl === 'function' && field === 'key')
-                ctrl = ctrl(item, path);
-        }
-    }
-    return typeof ctrl === 'function' ? ctrl(item, path) : ctrl;
-}
-
 /** The byte order mark */
 const BOM = '\u{FEFF}';
 /** Start of doc-mode */
@@ -88739,30 +88288,6 @@ const DOCUMENT = '\x02'; // C0: Start of Text
 const FLOW_END = '\x18'; // C0: Cancel
 /** Next token is a scalar value */
 const SCALAR = '\x1f'; // C0: Unit Separator
-/** @returns `true` if `token` is a flow or block collection */
-const isCollection = (token) => !!token && 'items' in token;
-/** @returns `true` if `token` is a flow or block scalar; not an alias */
-const isScalar = (token) => !!token &&
-    (token.type === 'scalar' ||
-        token.type === 'single-quoted-scalar' ||
-        token.type === 'double-quoted-scalar' ||
-        token.type === 'block-scalar');
-/* istanbul ignore next */
-/** Get a printable representation of a lexer token */
-function prettyToken(token) {
-    switch (token) {
-        case BOM:
-            return '<BOM>';
-        case DOCUMENT:
-            return '<DOC>';
-        case FLOW_END:
-            return '<FLOW_END>';
-        case SCALAR:
-            return '<SCALAR>';
-        default:
-            return JSON.stringify(token);
-    }
-}
 /** Identify the type of a lexer token. May return `null` for unknown tokens. */
 function tokenType(source) {
     switch (source) {
@@ -88823,23 +88348,6 @@ function tokenType(source) {
     }
     return null;
 }
-
-var cst = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    BOM: BOM,
-    DOCUMENT: DOCUMENT,
-    FLOW_END: FLOW_END,
-    SCALAR: SCALAR,
-    createScalarToken: createScalarToken,
-    isCollection: isCollection,
-    isScalar: isScalar,
-    prettyToken: prettyToken,
-    resolveAsScalar: resolveAsScalar,
-    setScalarValue: setScalarValue,
-    stringify: stringify$1,
-    tokenType: tokenType,
-    visit: visit
-});
 
 /*
 START -> stream
@@ -90573,29 +90081,6 @@ function parseOptions(options) {
     const lineCounter = options.lineCounter || (prettyErrors && new LineCounter()) || null;
     return { lineCounter, prettyErrors };
 }
-/**
- * Parse the input as a stream of YAML documents.
- *
- * Documents should be separated from each other by `...` or `---` marker lines.
- *
- * @returns If an empty `docs` array is returned, it will be of type
- *   EmptyStream and contain additional stream information. In
- *   TypeScript, you should use `'empty' in docs` as a type guard for it.
- */
-function parseAllDocuments(source, options = {}) {
-    const { lineCounter, prettyErrors } = parseOptions(options);
-    const parser = new Parser(lineCounter?.addNewLine);
-    const composer = new Composer(options);
-    const docs = Array.from(composer.compose(parser.parse(source)));
-    if (prettyErrors && lineCounter)
-        for (const doc of docs) {
-            doc.errors.forEach(prettifyError(source, lineCounter));
-            doc.warnings.forEach(prettifyError(source, lineCounter));
-        }
-    if (docs.length > 0)
-        return docs;
-    return Object.assign([], { empty: true }, composer.streamInfo());
-}
 /** Parse an input string into a single YAML.Document */
 function parseDocument(source, options = {}) {
     const { lineCounter, prettyErrors } = parseOptions(options);
@@ -90619,12 +90104,6 @@ function parseDocument(source, options = {}) {
 }
 function parse(src, reviver, options) {
     let _reviver = undefined;
-    if (typeof reviver === 'function') {
-        _reviver = reviver;
-    }
-    else if (options === undefined && reviver && typeof reviver === 'object') {
-        options = reviver;
-    }
     const doc = parseDocument(src, options);
     if (!doc)
         return null;
@@ -90639,20 +90118,11 @@ function parse(src, reviver, options) {
 }
 function stringify(value, replacer, options) {
     let _replacer = null;
-    if (typeof replacer === 'function' || Array.isArray(replacer)) {
+    if (Array.isArray(replacer)) {
         _replacer = replacer;
     }
-    else if (options === undefined && replacer) {
-        options = replacer;
-    }
-    if (typeof options === 'string')
-        options = options.length;
-    if (typeof options === 'number') {
-        const indent = Math.round(options);
-        options = indent < 1 ? undefined : indent > 8 ? { indent: 8 } : { indent };
-    }
     if (value === undefined) {
-        const { keepUndefined } = options ?? replacer ?? {};
+        const { keepUndefined } = {};
         if (!keepUndefined)
             return undefined;
     }
@@ -90660,39 +90130,6 @@ function stringify(value, replacer, options) {
         return value.toString(options);
     return new Document(value, _replacer, options).toString(options);
 }
-
-var YAML = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    Alias: Alias,
-    CST: cst,
-    Composer: Composer,
-    Document: Document,
-    Lexer: Lexer,
-    LineCounter: LineCounter,
-    Pair: Pair,
-    Parser: Parser,
-    Scalar: Scalar,
-    Schema: Schema,
-    YAMLError: YAMLError,
-    YAMLMap: YAMLMap,
-    YAMLParseError: YAMLParseError,
-    YAMLSeq: YAMLSeq,
-    YAMLWarning: YAMLWarning,
-    isAlias: isAlias,
-    isCollection: isCollection$1,
-    isDocument: isDocument,
-    isMap: isMap,
-    isNode: isNode,
-    isPair: isPair,
-    isScalar: isScalar$1,
-    isSeq: isSeq,
-    parse: parse,
-    parseAllDocuments: parseAllDocuments,
-    parseDocument: parseDocument,
-    stringify: stringify,
-    visit: visit$1,
-    visitAsync: visitAsync
-});
 
 const DEFAULT_FACTORY_URL = "https://factory.talos.dev/";
 
@@ -90747,7 +90184,7 @@ function schematicDocument(cluster, baseDir = process.cwd()) {
       throw new Error(`could not read schematic ${schematic}: ${err.message}`);
     }
     try {
-      return YAML.parse(source);
+      return parse(source);
     } catch (err) {
       throw new Error(`schematic ${schematic} is not valid YAML: ${err.message}`);
     }
@@ -90784,7 +90221,7 @@ function withKernelArgs(schematic, args) {
   };
 }
 
-const toYaml = (document) => YAML.stringify(document);
+const toYaml = (document) => stringify(document);
 
 /**
  * Where talosctl caches Image Factory downloads, keyed by source URL. Fixed in
@@ -99573,7 +99010,7 @@ function formatError(err) {
 function parseCluster(source) {
   let doc;
   try {
-    doc = YAML.parse(source);
+    doc = parse(source);
   } catch (err) {
     throw new Error(`config is not valid YAML: ${err.message}`);
   }
@@ -99745,7 +99182,7 @@ function resolvePatch(patch, { baseDir = process.cwd(), vars = {} } = {}) {
       throw new Error(`could not read config patch ${patch}: ${err.message}`);
     }
     try {
-      value = YAML.parse(substitute(source, vars));
+      value = parse(substitute(source, vars));
     } catch (err) {
       throw new Error(`config patch ${patch} is not valid YAML: ${err.message}`);
     }
