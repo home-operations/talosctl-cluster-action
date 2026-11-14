@@ -1,5 +1,111 @@
 # Changelog
 
+## [0.2.3](https://github.com/home-operations/talosctl-cluster-action/compare/v0.2.2...v0.2.3) (2026-11-14)
+
+
+### Features
+
+* **npm:** update dependency @actions/cache (6.2.0 → 6.3.0) ([#103](https://github.com/home-operations/talosctl-cluster-action/issues/103)) ([870d155](https://github.com/home-operations/talosctl-cluster-action/commit/870d155f6112127e7f45f961e0570dcbd114ce3c))
+* **npm:** update dependency node to v24.21.0 ([#83](https://github.com/home-operations/talosctl-cluster-action/issues/83)) ([d2b72a2](https://github.com/home-operations/talosctl-cluster-action/commit/d2b72a2c666a9e7669c92f72f4efb46e3434aa73))
+* **npm:** update dependency node to v24.22.0 ([#132](https://github.com/home-operations/talosctl-cluster-action/issues/132)) ([2e64e6d](https://github.com/home-operations/talosctl-cluster-action/commit/2e64e6dfd770dae7a0224bc7e3a1ec5d639ffb1b))
+* **npm:** update dependency oxlint (1.81.0 → 1.82.0) ([#82](https://github.com/home-operations/talosctl-cluster-action/issues/82)) ([c468d7e](https://github.com/home-operations/talosctl-cluster-action/commit/c468d7ef719c48cb1f494e46aa3e79e10be86837))
+* **npm:** update dependency oxlint (1.82.0 → 1.83.0) ([#90](https://github.com/home-operations/talosctl-cluster-action/issues/90)) ([e9de1a2](https://github.com/home-operations/talosctl-cluster-action/commit/e9de1a271cf464fd49565fdefec172b8bd16a6ab))
+* **npm:** update dependency oxlint (1.83.0 → 1.84.0) ([#97](https://github.com/home-operations/talosctl-cluster-action/issues/97)) ([1b6e441](https://github.com/home-operations/talosctl-cluster-action/commit/1b6e441f70e2dc8eb3a3e32b957ea3decb4bb54c))
+* **npm:** update dependency oxlint (1.84.0 → 1.85.0) ([#98](https://github.com/home-operations/talosctl-cluster-action/issues/98)) ([ac6fa1f](https://github.com/home-operations/talosctl-cluster-action/commit/ac6fa1f47eb531ba34a8368b56a2837be8a20831))
+* **npm:** update dependency oxlint (1.85.0 → 1.86.0) ([#104](https://github.com/home-operations/talosctl-cluster-action/issues/104)) ([19e8cd5](https://github.com/home-operations/talosctl-cluster-action/commit/19e8cd541ff43f523ebd5d22b5ebc688d7e5bd43))
+* **npm:** update dependency oxlint (1.86.0 → 1.88.0) ([#124](https://github.com/home-operations/talosctl-cluster-action/issues/124)) ([f4b3dec](https://github.com/home-operations/talosctl-cluster-action/commit/f4b3dec21bb42991e408dafd39b574be3f0ff582))
+* **npm:** update dependency oxlint (1.88.0 → 1.89.0) ([#138](https://github.com/home-operations/talosctl-cluster-action/issues/138)) ([5c838ac](https://github.com/home-operations/talosctl-cluster-action/commit/5c838ac0888dca62800768cb3463abbd3b1dc2e3))
+* **npm:** update dependency rollup (4.63.5 → 4.64.9) ([#133](https://github.com/home-operations/talosctl-cluster-action/issues/133)) ([e1572d1](https://github.com/home-operations/talosctl-cluster-action/commit/e1572d13e070cb7cf631284a2ef3d24328a404da))
+* **npm:** update dependency rollup (4.64.12 → 4.65.0) ([#142](https://github.com/home-operations/talosctl-cluster-action/issues/142)) ([be6bbb2](https://github.com/home-operations/talosctl-cluster-action/commit/be6bbb200fdda8457a97b9d26c8bdb58fb963691))
+
+
+### Bug Fixes
+
+* **mise:** restore generated lock sidecars ([3c84915](https://github.com/home-operations/talosctl-cluster-action/commit/3c8491516e67251e17d5c384975b687b11adfa4f))
+* **npm:** update dependency node to v24.22.1 ([#139](https://github.com/home-operations/talosctl-cluster-action/issues/139)) ([9ed0f54](https://github.com/home-operations/talosctl-cluster-action/commit/9ed0f5404a470a9a5d8481f9ef453196a2470ff7))
+* **npm:** update dependency rollup (4.63.1 → 4.63.2) ([#88](https://github.com/home-operations/talosctl-cluster-action/issues/88)) ([a1d14d1](https://github.com/home-operations/talosctl-cluster-action/commit/a1d14d19e29efb1a8bf268e24e7555b93f9cc460))
+* **npm:** update dependency rollup (4.63.2 → 4.63.3) ([#89](https://github.com/home-operations/talosctl-cluster-action/issues/89)) ([49c4719](https://github.com/home-operations/talosctl-cluster-action/commit/49c4719d6d574989dd4caee1bddaa44742db4a77))
+* **npm:** update dependency rollup (4.63.3 → 4.63.4) ([#96](https://github.com/home-operations/talosctl-cluster-action/issues/96)) ([d58021e](https://github.com/home-operations/talosctl-cluster-action/commit/d58021e34eedc46909da3ef661d729ea12491dcf))
+* **npm:** update dependency rollup (4.63.4 → 4.63.5) ([#99](https://github.com/home-operations/talosctl-cluster-action/issues/99)) ([ef17d82](https://github.com/home-operations/talosctl-cluster-action/commit/ef17d82d79050b99a544cb7f6be087cb4204f0f9))
+* **npm:** update dependency rollup (4.64.10 → 4.64.12) ([#140](https://github.com/home-operations/talosctl-cluster-action/issues/140)) ([3b18e19](https://github.com/home-operations/talosctl-cluster-action/commit/3b18e19df86bc31bb6c9e2fa057da2c555f9093e))
+* **npm:** update dependency rollup (4.64.9 → 4.64.10) ([#134](https://github.com/home-operations/talosctl-cluster-action/issues/134)) ([6930942](https://github.com/home-operations/talosctl-cluster-action/commit/69309422689b85e45bb56f200e2bc775dc5f9c0b))
+* **npm:** update dependency rollup (4.65.0 → 4.65.1) ([#145](https://github.com/home-operations/talosctl-cluster-action/issues/145)) ([f58632d](https://github.com/home-operations/talosctl-cluster-action/commit/f58632d01f991fb0894586b76ce01eb51915b332))
+* **npm:** update dependency yaml (2.9.0 → 2.9.1) ([#86](https://github.com/home-operations/talosctl-cluster-action/issues/86)) ([ad06abf](https://github.com/home-operations/talosctl-cluster-action/commit/ad06abfb6d80b76b097be0a22ebd6eb201c81f95))
+
+
+### Continuous Integration
+
+* **github-action:** Update action home-operations/.github/actions/workflow-lint (v1.0.3 → v1.0.4) ([#94](https://github.com/home-operations/talosctl-cluster-action/issues/94)) ([ec8d8b8](https://github.com/home-operations/talosctl-cluster-action/commit/ec8d8b85ed41ac12c53fa71d59cc8f2f00821965))
+* mark issues and PRs stale after 180 days, close 14 days later ([301e7ef](https://github.com/home-operations/talosctl-cluster-action/commit/301e7ef986308033c32d8be6ad42115e3779546d))
+* **renovate:** regenerate generated files on Renovate pull requests ([#122](https://github.com/home-operations/talosctl-cluster-action/issues/122)) ([546edc2](https://github.com/home-operations/talosctl-cluster-action/commit/546edc233706d181f4d78cbf4b0df45e4da956a0))
+* **renovate:** remove the dispatch workflow ([50a082e](https://github.com/home-operations/talosctl-cluster-action/commit/50a082e4a555d8b28c2dcfa6ebec4180e3bb81e5))
+* replace the shared workflow-lint action with zizmor-action ([9efff5b](https://github.com/home-operations/talosctl-cluster-action/commit/9efff5b4ac51b2ea3185f1a21c479d793925aa14))
+
+
+### Miscellaneous Chores
+
+* **github-action:** update action jdx/mise-action (v4.3.0 → v5.0.0) ([#107](https://github.com/home-operations/talosctl-cluster-action/issues/107)) ([f6529fe](https://github.com/home-operations/talosctl-cluster-action/commit/f6529fe95c4ae8ed79fe78438bbc314d5c990acf))
+* **github-action:** update action jdx/mise-action (v5.0.0 → v5.0.1) ([#111](https://github.com/home-operations/talosctl-cluster-action/issues/111)) ([901faf7](https://github.com/home-operations/talosctl-cluster-action/commit/901faf7e07e42e19240d09a1fcc39d211408350e))
+* **github-action:** update action jdx/mise-action (v5.1.2 → v5.2.0) ([#131](https://github.com/home-operations/talosctl-cluster-action/issues/131)) ([ea97b82](https://github.com/home-operations/talosctl-cluster-action/commit/ea97b825cf9f87c3fd16945bc5194c1f33f7b479))
+* **github-action:** update action jdx/mise-action (v5.2.0 → v5.2.1) ([#136](https://github.com/home-operations/talosctl-cluster-action/issues/136)) ([0498155](https://github.com/home-operations/talosctl-cluster-action/commit/04981555d5e5f58a181b393d5ac269594f10110d))
+* **github-action:** update action jdx/mise-action (v5.2.1 → v5.2.2) ([#141](https://github.com/home-operations/talosctl-cluster-action/issues/141)) ([f31649f](https://github.com/home-operations/talosctl-cluster-action/commit/f31649ffe6fea51d5d9caedf01cfc6f5eb7e49ca))
+* **github-action:** update action jdx/mise-action (v5.2.2 → v5.2.3) ([#144](https://github.com/home-operations/talosctl-cluster-action/issues/144)) ([f93dea0](https://github.com/home-operations/talosctl-cluster-action/commit/f93dea045cb45d1593a5ffc0b6ab8d7f9b0ac003))
+* **github-action:** update action jdx/mise-action (v5.2.3 → v5.2.4) ([#149](https://github.com/home-operations/talosctl-cluster-action/issues/149)) ([7183dc7](https://github.com/home-operations/talosctl-cluster-action/commit/7183dc741698d216e8baf3a840aa0f00c6926d35))
+* **github-action:** update action jdx/mise-action (v5.2.4 → v5.2.5) ([#153](https://github.com/home-operations/talosctl-cluster-action/issues/153)) ([2b5e2ad](https://github.com/home-operations/talosctl-cluster-action/commit/2b5e2adef03b97145f4c2dd76ca4245657d1b44f))
+* **github-action:** update action jdx/mise-action (v5.2.6 → v5.2.7) ([#162](https://github.com/home-operations/talosctl-cluster-action/issues/162)) ([13dc757](https://github.com/home-operations/talosctl-cluster-action/commit/13dc757cfd74a03d6e7aad2de7c0120b0d5f7fe8))
+* **github-action:** update action ubuntu (24.04 → 26.04) ([#93](https://github.com/home-operations/talosctl-cluster-action/issues/93)) ([27bdd91](https://github.com/home-operations/talosctl-cluster-action/commit/27bdd916b8af3a0b0af4f03a579860fc6a44e825))
+* **github-action:** update github-actions ([#118](https://github.com/home-operations/talosctl-cluster-action/issues/118)) ([24c9890](https://github.com/home-operations/talosctl-cluster-action/commit/24c98908cd0ed5459678f990d7d5dfb1adb055b9))
+* **github-action:** update github-actions ([#126](https://github.com/home-operations/talosctl-cluster-action/issues/126)) ([3a3c8b3](https://github.com/home-operations/talosctl-cluster-action/commit/3a3c8b35f4470888c591f38562eb16154cd3a38a))
+* **github-action:** update github-actions ([#156](https://github.com/home-operations/talosctl-cluster-action/issues/156)) ([fb14a23](https://github.com/home-operations/talosctl-cluster-action/commit/fb14a230136169268be5e83d9a4770952257046c))
+* **github-release:** update talos group ([#110](https://github.com/home-operations/talosctl-cluster-action/issues/110)) ([373a49c](https://github.com/home-operations/talosctl-cluster-action/commit/373a49cc20009f98fb84594ab162640a17249841))
+* **github-release:** update talos group ([#129](https://github.com/home-operations/talosctl-cluster-action/issues/129)) ([d97d8c4](https://github.com/home-operations/talosctl-cluster-action/commit/d97d8c4e009dea038deb67f7f05d7c70a3742f2a))
+* **github-release:** update talos group ([#143](https://github.com/home-operations/talosctl-cluster-action/issues/143)) ([4a28334](https://github.com/home-operations/talosctl-cluster-action/commit/4a28334589d3113b717e0ac399adc2e9121a8308))
+* **github-release:** update talos group ([#166](https://github.com/home-operations/talosctl-cluster-action/issues/166)) ([d72d471](https://github.com/home-operations/talosctl-cluster-action/commit/d72d4713b8e5c8509aead6b1f060bb1f5b2e5e54))
+* **github-release:** update talos group ([#95](https://github.com/home-operations/talosctl-cluster-action/issues/95)) ([8d0931b](https://github.com/home-operations/talosctl-cluster-action/commit/8d0931b0221977cd1a4f7aa3c4669aff19833da5))
+* **mise:** update mise tools ([#119](https://github.com/home-operations/talosctl-cluster-action/issues/119)) ([0d8d999](https://github.com/home-operations/talosctl-cluster-action/commit/0d8d99927d0419952799c08c379bbce7cf9c4404))
+* **mise:** update tool lefthook (2.1.12 → 2.1.14) ([#91](https://github.com/home-operations/talosctl-cluster-action/issues/91)) ([75056ef](https://github.com/home-operations/talosctl-cluster-action/commit/75056efcc2bcf2e5b051c1b4074e984ab3ca2b1e))
+* **mise:** update tool lefthook (2.1.14 → 2.1.15) ([#109](https://github.com/home-operations/talosctl-cluster-action/issues/109)) ([e629f55](https://github.com/home-operations/talosctl-cluster-action/commit/e629f55cfa80d5d9c96fbde63f8c7310e002694f))
+* **mise:** update tool lefthook (2.2.0 → 2.2.1) ([#120](https://github.com/home-operations/talosctl-cluster-action/issues/120)) ([5a50aea](https://github.com/home-operations/talosctl-cluster-action/commit/5a50aea638189373ceff60798c75d0a6dc7db273))
+* **mise:** update tool lefthook (2.2.1 → 2.2.2) ([#127](https://github.com/home-operations/talosctl-cluster-action/issues/127)) ([09a3231](https://github.com/home-operations/talosctl-cluster-action/commit/09a3231ee990ffce6ac23543d728d66b119505d8))
+* **mise:** update tool npm (12.0.2 → 12.1.0) ([#102](https://github.com/home-operations/talosctl-cluster-action/issues/102)) ([8e23212](https://github.com/home-operations/talosctl-cluster-action/commit/8e23212218228fafa54a4083405a2ceec92cf7db))
+* **mise:** update tool npm (12.2.0 → 12.2.1) ([#135](https://github.com/home-operations/talosctl-cluster-action/issues/135)) ([bd8fcfc](https://github.com/home-operations/talosctl-cluster-action/commit/bd8fcfcec994fb761a28b552abe44fc7c92a47d2))
+* **mise:** update tool npm (12.2.1 → 12.2.2) ([#160](https://github.com/home-operations/talosctl-cluster-action/issues/160)) ([02b8165](https://github.com/home-operations/talosctl-cluster-action/commit/02b8165cda4880b09d1c8cfae9a7fe683b0a098d))
+* **mise:** update tool oxfmt (0.65.0 → 0.66.0) ([#80](https://github.com/home-operations/talosctl-cluster-action/issues/80)) ([fd8dc89](https://github.com/home-operations/talosctl-cluster-action/commit/fd8dc8962ab1b02931e370d7b4b0de6ea5bac3e6))
+* **mise:** update tool oxfmt (0.66.0 → 0.67.0) ([#84](https://github.com/home-operations/talosctl-cluster-action/issues/84)) ([2311b04](https://github.com/home-operations/talosctl-cluster-action/commit/2311b04d73bd11a941045120ff5dc40ff77c51b7))
+* **mise:** update tool oxfmt (0.67.0 → 0.68.0) ([#92](https://github.com/home-operations/talosctl-cluster-action/issues/92)) ([2a9dcad](https://github.com/home-operations/talosctl-cluster-action/commit/2a9dcadfa3fd2e3186a5540c46158ba62d12c9b5))
+* **mise:** update tool oxfmt (0.68.0 → 0.69.0) ([#100](https://github.com/home-operations/talosctl-cluster-action/issues/100)) ([72a5dbb](https://github.com/home-operations/talosctl-cluster-action/commit/72a5dbb2f0d61e245e94b1a87f92deb1cb1308ad))
+* **mise:** update tool oxfmt (0.69.0 → 0.70.0) ([#101](https://github.com/home-operations/talosctl-cluster-action/issues/101)) ([eef3aab](https://github.com/home-operations/talosctl-cluster-action/commit/eef3aab66499426f699cac75dc4a3ce54cc1ecd2))
+* **mise:** update tool oxfmt (0.70.0 → 0.71.0) ([#106](https://github.com/home-operations/talosctl-cluster-action/issues/106)) ([6a0f71c](https://github.com/home-operations/talosctl-cluster-action/commit/6a0f71ce5f821ce0535591660e4576952e28e078))
+* **mise:** update tool oxfmt (0.71.0 → 0.72.0) ([#123](https://github.com/home-operations/talosctl-cluster-action/issues/123)) ([7c2f4c0](https://github.com/home-operations/talosctl-cluster-action/commit/7c2f4c051e8a99c9b92c3e0e43fd024e33c4c4ce))
+* **mise:** update tool oxfmt (0.72.0 → 0.73.0) ([#128](https://github.com/home-operations/talosctl-cluster-action/issues/128)) ([cacf696](https://github.com/home-operations/talosctl-cluster-action/commit/cacf6965a62a559078792557a39b522c13805487))
+* **mise:** update tool oxfmt (0.73.0 → 0.74.0) ([#137](https://github.com/home-operations/talosctl-cluster-action/issues/137)) ([6946e54](https://github.com/home-operations/talosctl-cluster-action/commit/6946e549a61c3f2bb869bca3256ef9381de440d5))
+* **mise:** update tool oxfmt (0.74.0 → 0.75.0) ([#147](https://github.com/home-operations/talosctl-cluster-action/issues/147)) ([7a6d5c6](https://github.com/home-operations/talosctl-cluster-action/commit/7a6d5c6e37b0537a7479ac749aef9bc938714f28))
+* **mise:** update tool yq (4.53.6 → 4.54.1) ([#108](https://github.com/home-operations/talosctl-cluster-action/issues/108)) ([1404dec](https://github.com/home-operations/talosctl-cluster-action/commit/1404dececefa61281368bb2590f3ccb19a8fa678))
+* **mise:** update tool yq (4.54.1 → 4.54.2) ([#161](https://github.com/home-operations/talosctl-cluster-action/issues/161)) ([a076775](https://github.com/home-operations/talosctl-cluster-action/commit/a07677564639f7c034f1806222e68873e1ded3c2))
+* **mise:** update tool yq (4.54.2 → 4.54.3) ([#167](https://github.com/home-operations/talosctl-cluster-action/issues/167)) ([220c8be](https://github.com/home-operations/talosctl-cluster-action/commit/220c8be1b61d1da0be4f29f4e23ff257af0791b1))
+* **mise:** update tool zizmor (1.30.0 → 1.30.1) ([#87](https://github.com/home-operations/talosctl-cluster-action/issues/87)) ([99577d4](https://github.com/home-operations/talosctl-cluster-action/commit/99577d47c6987d30f098d676a535bf83c5e7070d))
+* **mise:** update tool zizmor (1.30.1 → 1.31.1) ([#130](https://github.com/home-operations/talosctl-cluster-action/issues/130)) ([37eab46](https://github.com/home-operations/talosctl-cluster-action/commit/37eab464545b32135ecc2a92360cd9b425c2f279))
+* **mise:** update tool zizmor (1.31.1 → 1.32.0) ([#157](https://github.com/home-operations/talosctl-cluster-action/issues/157)) ([6a23a5b](https://github.com/home-operations/talosctl-cluster-action/commit/6a23a5bc5a59e349ba7a928cfab5687d2453b848))
+* **mise:** upgrade lockfile to format revision 3 ([f08b359](https://github.com/home-operations/talosctl-cluster-action/commit/f08b35986634a8b20a4c95add487c3c4c918c382))
+* **npm:** lock file maintenance dependency (npm) ([#105](https://github.com/home-operations/talosctl-cluster-action/issues/105)) ([27c8267](https://github.com/home-operations/talosctl-cluster-action/commit/27c8267e5c2336a856aad9156b2e5644f8c76a45))
+* **npm:** update dependency node to v24.22.2 ([#146](https://github.com/home-operations/talosctl-cluster-action/issues/146)) ([5a6cb38](https://github.com/home-operations/talosctl-cluster-action/commit/5a6cb38e3f9f88ec9067ed330483a373d4c392cd))
+* **npm:** update dependency node to v24.22.3 ([#168](https://github.com/home-operations/talosctl-cluster-action/issues/168)) ([593a8e3](https://github.com/home-operations/talosctl-cluster-action/commit/593a8e30386a3dc4bfb2b79b3269438b9f5760f3))
+* **npm:** update dependency oxlint (1.89.0 → 1.90.0) ([#148](https://github.com/home-operations/talosctl-cluster-action/issues/148)) ([22d7cfe](https://github.com/home-operations/talosctl-cluster-action/commit/22d7cfe7ec9aa7fa1008a3c614350f1096b4e07a))
+* **npm:** update dependency oxlint (1.90.0 → 1.91.0) ([#154](https://github.com/home-operations/talosctl-cluster-action/issues/154)) ([7c544b0](https://github.com/home-operations/talosctl-cluster-action/commit/7c544b0a9541d1d149a7cbf3ba5a9ab8d37f4949))
+* **npm:** update dependency oxlint (1.91.0 → 1.92.0) ([#158](https://github.com/home-operations/talosctl-cluster-action/issues/158)) ([1ce3c07](https://github.com/home-operations/talosctl-cluster-action/commit/1ce3c07506672c1691699ed54781db4109d67d1e))
+* **npm:** update dependency oxlint (1.92.0 → 1.93.0) ([#164](https://github.com/home-operations/talosctl-cluster-action/issues/164)) ([20bd954](https://github.com/home-operations/talosctl-cluster-action/commit/20bd9548e4c6631bb2f2b7e872d2ffd7adb2dc58))
+* **npm:** update dependency rollup (4.65.1 → 4.67.2) ([#150](https://github.com/home-operations/talosctl-cluster-action/issues/150)) ([d1ff585](https://github.com/home-operations/talosctl-cluster-action/commit/d1ff585559f197177f3a0cadcb4fc0c4b05107b0))
+* **npm:** update dependency rollup (4.67.2 → 4.67.3) ([#151](https://github.com/home-operations/talosctl-cluster-action/issues/151)) ([520656c](https://github.com/home-operations/talosctl-cluster-action/commit/520656c89fbf273a3968bf1115ad9dc4a933e68c))
+* **npm:** update dependency rollup (4.67.3 → 4.67.4) ([#152](https://github.com/home-operations/talosctl-cluster-action/issues/152)) ([adb2c04](https://github.com/home-operations/talosctl-cluster-action/commit/adb2c048ed69198d51f3ba47ea2085e31bdf731d))
+* **npm:** update dependency rollup (4.67.4 → 4.67.5) ([#155](https://github.com/home-operations/talosctl-cluster-action/issues/155)) ([2ec60f7](https://github.com/home-operations/talosctl-cluster-action/commit/2ec60f7893a19f1e1c4abbd0b8083ff6edee6b59))
+* **npm:** update dependency rollup (4.67.5 → 4.68.0) ([#159](https://github.com/home-operations/talosctl-cluster-action/issues/159)) ([6ae63ec](https://github.com/home-operations/talosctl-cluster-action/commit/6ae63ece277caeab262071e5fc00643968cebdb9))
+* **npm:** update dependency rollup (4.68.0 → 4.68.1) ([#163](https://github.com/home-operations/talosctl-cluster-action/issues/163)) ([b5503f2](https://github.com/home-operations/talosctl-cluster-action/commit/b5503f2641523f16addb03c1b0cfb32ef9f59265))
+* **npm:** update dependency rollup (4.68.1 → 4.68.2) ([#165](https://github.com/home-operations/talosctl-cluster-action/issues/165)) ([5f6dc79](https://github.com/home-operations/talosctl-cluster-action/commit/5f6dc79207e8a8a02f79b23a00466dfa886e999b))
+* **npm:** update dependency rollup (4.68.2 → 4.68.3) ([#169](https://github.com/home-operations/talosctl-cluster-action/issues/169)) ([ff7a473](https://github.com/home-operations/talosctl-cluster-action/commit/ff7a47367f7b91fed3fe0cadb4c34fec98750cde))
+* **oxfmt:** ignore mise lock sidecars ([c581cf5](https://github.com/home-operations/talosctl-cluster-action/commit/c581cf5e1853d392697ea97ede02f69297ba07db))
+* **renovate:** drop the dist rebuild post-upgrade task ([e7c01f7](https://github.com/home-operations/talosctl-cluster-action/commit/e7c01f7f3c5d0b513f74822e1a24967ac34de2cb))
+* **renovate:** extend the org preset from home-operations/.github ([171cf40](https://github.com/home-operations/talosctl-cluster-action/commit/171cf4056dae418b5ead2a00a75a88be0ea6a9a7))
+
 ## [0.2.2](https://github.com/home-operations/talosctl-cluster-action/compare/v0.2.1...v0.2.2) (2026-09-03)
 
 
