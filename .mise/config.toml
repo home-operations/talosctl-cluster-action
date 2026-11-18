@@ -4,6 +4,8 @@
 #
 # `mise tasks` lists tasks; `mise run <task>` runs one.
 
+min_version = "2026.11.1"
+
 [tools]
 # Held at 24.x deliberately, not stale. GitHub Actions offers only node20 and node24
 # as action runtimes, so action.yaml's `using: node24` is the ceiling; building and
@@ -13,7 +15,7 @@
 node = "24.22.3"
 npm = "12.2.2"
 lefthook = "2.2.2"
-oxfmt = "0.75.0"
+"github:oxc-project/oxc" = { version = "0.75.0", version_prefix = "oxfmt_v", matching_regex = "^oxfmt-", rename_exe = "oxfmt" }
 shellcheck = "0.11.0"
 zizmor = "1.32.0"
 jq = "1.8.2"
