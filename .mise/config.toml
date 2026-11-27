@@ -14,7 +14,7 @@ min_version = "2026.11.1"
 # to match, and change `using:` in the same commit.
 node = "24.22.3"
 npm = "12.2.3"
-lefthook = "2.2.2"
+lefthook = "2.2.3"
 "github:oxc-project/oxc" = { version = "0.80.0", version_prefix = "oxfmt_v", matching_regex = "^oxfmt-", rename_exe = "oxfmt" }
 shellcheck = "0.11.0"
 zizmor = "1.33.1"
